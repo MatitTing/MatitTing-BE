@@ -35,9 +35,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-### yml ###
-**.yml
-
-### sql ###
-**.sql
