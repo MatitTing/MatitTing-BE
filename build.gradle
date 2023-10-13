@@ -24,16 +24,45 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'com.auth0:java-jwt:4.2.1'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'io.lettuce:lettuce-core'
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// QueryDSL 설정
+	implementation "com.querydsl:querydsl-jpa:5.0.0:jakarta"
+	annotationProcessor "com.querydsl:querydsl-apt:5.0.0:jakarta"
+	annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+	annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+	// -- QueryDSL ---
+
+	//json parser
+	implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.mysql:mysql-connector-j'
 	implementation 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.0.2'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testCompileOnly 'org.projectlombok:lombok' // 테스트 의존성 추가
+	testAnnotationProcessor 'org.projectlombok:lombok' // 테스트 의존성 추가
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+def generatedDir = 'src/main/generated'
+
+clean {
+	delete file (generatedDir)
 }
