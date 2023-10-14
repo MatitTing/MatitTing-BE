@@ -5,6 +5,9 @@ import com.kr.matitting.constant.SocialType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Builder
 @AllArgsConstructor
@@ -40,4 +43,11 @@ public class User extends BaseTimeEntity{
 
     @Enumerated(EnumType.STRING)
     private Role role; //신규유저 or 기존유저
+
+    @OneToMany(mappedBy = "user")
+    private List<ChatRoomUser> chatRoomsUsers = new ArrayList<>();
+
+    public void addChatRoomUser(ChatRoomUser chatRoomUser) {
+        this.chatRoomsUsers.add(chatRoomUser);
+    }
 }

@@ -1,11 +1,14 @@
 package com.kr.matitting.service;
 
+import com.kr.matitting.constant.ChatRoomType;
 import com.kr.matitting.constant.PartyCategory;
 import com.kr.matitting.constant.PartyJoinStatus;
 import com.kr.matitting.constant.PartyStatus;
 import com.kr.matitting.constant.Role;
 import com.kr.matitting.dto.CreatePartyRequest;
 import com.kr.matitting.dto.PartyJoinDto;
+import com.kr.matitting.entity.ChatRoom;
+import com.kr.matitting.entity.ChatRoomUser;
 import com.kr.matitting.entity.Party;
 import com.kr.matitting.entity.PartyJoin;
 import com.kr.matitting.entity.Team;
@@ -16,6 +19,7 @@ import com.kr.matitting.exception.partyjoin.PartyJoinException;
 import com.kr.matitting.exception.partyjoin.PartyJoinExceptionType;
 import com.kr.matitting.exception.user.UserException;
 import com.kr.matitting.exception.user.UserExceptionType;
+import com.kr.matitting.repository.ChatRoomRepository;
 import com.kr.matitting.repository.PartyJoinRepository;
 import com.kr.matitting.repository.PartyRepository;
 import com.kr.matitting.repository.PartyTeamRepository;
@@ -27,7 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.webjars.NotFoundException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -39,6 +45,7 @@ public class PartyService {
     private final PartyRepository partyRepository;
     private final UserRepository userRepository;
     private final MapService mapService;
+    private final ChatRoomRepository chatRoomRepository;
 
     public void createParty(CreatePartyRequest request) {
         log.info("=== createParty() start ===");
@@ -46,8 +53,8 @@ public class PartyService {
         User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("user 정보가 없습니다."));
 
         if (request.getTitle() == null || request.getContent() == null
-                || request.getPartyTime() == null || request.getLongitude() == null || request.getLatitude() == null
-                || request.getMenu() == null || request.getGender() == null || request.getCategory() == null) {
+            || request.getPartyTime() == null || request.getLongitude() == null || request.getLatitude() == null
+            || request.getMenu() == null || request.getGender() == null || request.getCategory() == null) {
             log.info("=== CreatePartyRequest: Request Data is null ===");
             throw new PartyException(PartyExceptionType.NOT_FOUND_CONTENT);
         }
@@ -77,37 +84,58 @@ public class PartyService {
 
         // address 변환, deadline, thumbnail이 null일 경우 처리하는 로직 처리 후 생성
         Party party = createBasePartyBuilder(request, user)
-                .address(address)
-                .deadline(deadline)
-                .thumbnail(thumbnail)
-                .build();
+            .address(address)
+            .deadline(deadline)
+            .thumbnail(thumbnail)
+            .build();
 
         partyRepository.save(party);
+
+        // 이미 채팅방이 생성되 있는 경우 예외 처리
+        Optional<ChatRoom> chatRoom = chatRoomRepository.findByPartyIdAndChatRoomType(
+            party.getId(), ChatRoomType.GROUP);
+
+        if(chatRoom.isPresent()) {
+            // 예외 처리
+        }
+
+        // 채팅방 생성
+        List<ChatRoomUser> chatRoomUsers = new ArrayList<>();
+        ChatRoom createdChatRoom = new ChatRoom(chatRoomUsers,
+            0L,
+            request.getTitle(),
+            party.getId(),
+            ChatRoomType.GROUP);
+        createdChatRoom.addParticipant(createdChatRoom, user);
+
+        chatRoomRepository.save(createdChatRoom);
     }
 
 
     // address, deadline, thumbnail와 같이 변환이나 null인 경우 처리가 필요한 필드는 제외하고 나머지 필드는 빌더패턴으로 생성
     private Party.PartyBuilder createBasePartyBuilder(CreatePartyRequest request, User user) {
         return Party.builder()
-                .partyTitle(request.getTitle())
-                .partyContent(request.getContent())
-                .longitude(request.getLongitude())
-                .latitude(request.getLatitude())
-                .menu(request.getMenu())
-                .partyTime(request.getPartyTime())
-                .totalParticipant(request.getTotalParticipant())
-                .category(request.getCategory())
-                .gender(request.getGender())
-                .status(PartyStatus.RECRUIT)
-                .user(user);
+            .partyTitle(request.getTitle())
+            .partyContent(request.getContent())
+            .longitude(request.getLongitude())
+            .latitude(request.getLatitude())
+            .menu(request.getMenu())
+            .partyTime(request.getPartyTime())
+            .totalParticipant(request.getTotalParticipant())
+            .category(request.getCategory())
+            .gender(request.getGender())
+            .status(PartyStatus.RECRUIT)
+            .user(user);
     }
 
     public void joinParty(PartyJoinDto partyJoinDto) throws NotFoundException {
         log.info("=== joinParty() start ===");
 
+        // 채팅방에 초대하는 로직
+
         if (partyJoinDto.getPartyId() == null ||
-                partyJoinDto.getLeaderId() == null ||
-                partyJoinDto.getUserId() == null) {
+            partyJoinDto.getLeaderId() == null ||
+            partyJoinDto.getUserId() == null) {
             log.error("=== JoinParty:Request Data is null ===");
             throw new PartyJoinException(PartyJoinExceptionType.NULL_POINT_PARTY_JOIN);
         }
@@ -126,9 +154,9 @@ public class PartyService {
         }
 
         PartyJoin findPartyJoin = partyJoinRepository.findByPartyIdAndLeaderIdAndUserId(
-                partyJoinDto.getPartyId(),
-                partyJoinDto.getLeaderId(),
-                partyJoinDto.getUserId()).orElseThrow(() -> new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN));
+            partyJoinDto.getPartyId(),
+            partyJoinDto.getLeaderId(),
+            partyJoinDto.getUserId()).orElseThrow(() -> new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN));
         partyJoinRepository.delete(findPartyJoin);
 
         if (partyJoinDto.getStatus() == PartyJoinStatus.ACCEPT) {
@@ -137,6 +165,17 @@ public class PartyService {
             Party party = partyRepository.findById(partyJoinDto.getPartyId()).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
             Team member = Team.builder().user(user).party(party).role(Role.VOLUNTEER).build();
             teamRepository.save(member);
+
+            // 채팅방 추가 로직
+            // 각 파티당 채팅방은 한 개만 만들어 져야 함
+            // 예외 처리 추가 해야함
+            ChatRoom chatRoom = chatRoomRepository.findByPartyIdAndChatRoomType(
+                partyJoinDto.getPartyId(), ChatRoomType.GROUP).orElseThrow();
+
+            chatRoom.addParticipant(chatRoom, user);
+
+            // 클라이언트측에서 구독을 해줘야 하기 때문에 리스폰스 값을 줘야 한다.
+
             return "Accept Request Completed";
         } else if (partyJoinDto.getStatus() == PartyJoinStatus.REFUSE) {
             log.info("=== REFUSE ===");
@@ -147,7 +186,7 @@ public class PartyService {
 
     public List<PartyJoin> getJoinList(PartyJoinDto partyJoinDto) {
         if (partyJoinDto.getPartyId() == null ||
-                partyJoinDto.getLeaderId() == null) {
+            partyJoinDto.getLeaderId() == null) {
             log.error("GetJoinList:[Request Data is null!!]");
             throw new PartyJoinException(PartyJoinExceptionType.NULL_POINT_PARTY_JOIN);
         }
