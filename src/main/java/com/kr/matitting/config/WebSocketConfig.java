@@ -1,6 +1,5 @@
 package com.kr.matitting.config;
 
-import com.kr.matitting.util.SocketTextHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;

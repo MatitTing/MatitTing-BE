@@ -1,6 +1,9 @@
 package com.kr.matitting.entity;
 
+import com.kr.matitting.constant.ChatRoomRole;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,8 +32,12 @@ public class ChatRoomUser {
     @JoinColumn(name="user_id")
     private User user;
 
-    public ChatRoomUser(ChatRoom chatRoom, User user) {
+    @Enumerated(EnumType.STRING)
+    private ChatRoomRole chatRoomRole;
+
+    public ChatRoomUser(ChatRoom chatRoom, User user, ChatRoomRole chatRoomRole) {
         this.chatRoom = chatRoom;
         this.user = user;
+        this.chatRoomRole = chatRoomRole;
     }
 }

@@ -1,7 +1,8 @@
 package com.kr.matitting.entity;
 
+import com.kr.matitting.constant.ChatRoomRole;
 import com.kr.matitting.constant.ChatRoomType;
-import com.kr.matitting.constant.Role;
+import com.kr.matitting.dto.ResponseChatRoomDto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,11 +57,17 @@ public class ChatRoom {
     }
 
     // 채팅방 인원 추가 및 참가자 인원 카운트
-    public void addParticipant(ChatRoom chatRoom, User user) {
-        ChatRoomUser chatRoomUser = new ChatRoomUser(chatRoom, user);
+    // 방장이랑 채팅을 해야하기 때문에 방장롤이 필요하다
+    // 즉 1대1 신청을 하면 그 파티의 장과 대화를 해야함
+    public void addParticipant(ChatRoom chatRoom, User user, ChatRoomRole chatRoomRole) {
+        ChatRoomUser chatRoomUser = new ChatRoomUser(chatRoom, user, chatRoomRole);
 
         this.chatRoomUsers.add(chatRoomUser);
         this.participantCount = (long) this.chatRoomUsers.size();
         user.addChatRoomUser(chatRoomUser);
+    }
+
+    public void toDto() {
+        return new ResponseChatRoomDto();  
     }
 }

@@ -1,5 +1,6 @@
 package com.kr.matitting.service;
 
+import com.kr.matitting.constant.ChatRoomRole;
 import com.kr.matitting.constant.ChatRoomType;
 import com.kr.matitting.constant.PartyCategory;
 import com.kr.matitting.constant.PartyJoinStatus;
@@ -101,12 +102,13 @@ public class PartyService {
 
         // 채팅방 생성
         List<ChatRoomUser> chatRoomUsers = new ArrayList<>();
-        ChatRoom createdChatRoom = new ChatRoom(chatRoomUsers,
+        ChatRoom createdChatRoom = new ChatRoom(
+            chatRoomUsers,
             0L,
             request.getTitle(),
             party.getId(),
-            ChatRoomType.GROUP);
-        createdChatRoom.addParticipant(createdChatRoom, user);
+            ChatRoomType.GROUP);   // 여기서 그러면은 새로운 그 사람을 만들어야 하잖아
+        createdChatRoom.addParticipant(createdChatRoom, user, ChatRoomRole.MANAGER);
 
         chatRoomRepository.save(createdChatRoom);
     }
@@ -172,9 +174,10 @@ public class PartyService {
             ChatRoom chatRoom = chatRoomRepository.findByPartyIdAndChatRoomType(
                 partyJoinDto.getPartyId(), ChatRoomType.GROUP).orElseThrow();
 
-            chatRoom.addParticipant(chatRoom, user);
+            chatRoom.addParticipant(chatRoom, user, ChatRoomRole.MEMBER);
 
             // 클라이언트측에서 구독을 해줘야 하기 때문에 리스폰스 값을 줘야 한다.
+            
 
             return "Accept Request Completed";
         } else if (partyJoinDto.getStatus() == PartyJoinStatus.REFUSE) {
