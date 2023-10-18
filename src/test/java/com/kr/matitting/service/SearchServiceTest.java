@@ -1,8 +1,6 @@
 package com.kr.matitting.service;
 
-import com.kr.matitting.constant.PartyStatus;
-import com.kr.matitting.constant.Role;
-import com.kr.matitting.constant.SocialType;
+import com.kr.matitting.constant.*;
 import com.kr.matitting.dto.PartySearchCondDto;
 import com.kr.matitting.entity.Party;
 import com.kr.matitting.entity.User;
@@ -55,25 +53,25 @@ class SearchServiceTest {
     public void 데이터생성() {
         User user = User.builder()
                 .socialId("30123")
+                .socialType(SocialType.KAKAO)
                 .email("parksn5029@nate.com")
                 .nickname("새싹개발자")
                 .age(26)
                 .imgUrl("https://www.naver.com")
-                .city("전주")
+                .gender(Gender.MALE)
                 .role(Role.USER)
-                .socialType(SocialType.KAKAO)
                 .build();
         userRepository.save(user);
 
         User guest = User.builder()
                 .socialId("12134")
+                .socialType(SocialType.KAKAO)
                 .email("parkjd5029@gmail.com")
                 .nickname("안경잡이개발자")
                 .age(26)
                 .imgUrl("https://www.google.com")
-                .city("전주")
+                .gender(Gender.FEMALE)
                 .role(Role.USER)
-                .socialType(SocialType.KAKAO)
                 .build();
         userRepository.save(guest);
 
@@ -91,14 +89,22 @@ class SearchServiceTest {
         menu_list.add("김치찌개");
         menu_list.add("된장찌개");
 
-
         for (int i = 1; i <= 20; i++) {
             Party party = Party.builder()
                     .partyTitle(title_list.get(i % 5) + String.valueOf(i))
-                    .menu(menu_list.get(i % 5) + String.valueOf(i))
+                    .partyContent(String.valueOf(i)+"번째 Content")
+                    .address("전주")
                     .status((i%2 == 0) ? PartyStatus.RECRUIT : PartyStatus.FINISH)
-                    .partyDeadline(LocalDateTime.of(2023, 10, 12, 15, 23, i))
+                    .deadline(LocalDateTime.of(2023, 10, 12, 15, 23, i))
+                    .partyTime(LocalDateTime.of(2024, 10, 12, 15, 23, i))
+                    .totalParticipant(4)
+                    .participantCount(1)
+                    .gender(Gender.ALL)
+                    .age(PartyAge.AGE2030)
                     .hit(i)
+                    .thumbnail("메뉴사진.jpg")
+                    .user(user)
+                    .menu(menu_list.get(i%5))
                     .build();
             partyRepository.save(party);
         }
@@ -146,11 +152,9 @@ class SearchServiceTest {
     @Test
     void 파티방검색_제목() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setTitle("사람");
-
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto("사람", null, null, null, 10);
         //when
-        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, 10));
+        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, partySearchCondDto.limit()));
 
         //then
         assertThat(parties.getTotalElements()).isEqualTo(8);
@@ -159,11 +163,10 @@ class SearchServiceTest {
     @Test
     void 파티방검색_메뉴() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setMenu("김치찌개");
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto(null, "김치찌개", null, null, 10);
 
         //when
-        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, 10));
+        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, partySearchCondDto.limit()));
 
         //then
         assertThat(parties.getTotalElements()).isEqualTo(4);
@@ -172,11 +175,10 @@ class SearchServiceTest {
     @Test
     void 파티방검색_상태() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setStatus(PartyStatus.RECRUIT);
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto(null, null, PartyStatus.RECRUIT, null, 10);
 
         //when
-        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, 10));
+        Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, PageRequest.of(0, partySearchCondDto.limit()));
 
         //then
         assertThat(parties.getTotalElements()).isEqualTo(10);
@@ -185,15 +187,14 @@ class SearchServiceTest {
     @Test
     void 파티방검색_제목_정렬_조회순() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setTitle("사람");
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto("사람", null, null, null, 10);
 
         Map<String, String> orders = new HashMap<>();
         orders.put("column", "hit");
         orders.put("type", "desc");
 
         //when
-        PageRequest pageable = PageRequest.of(0, 10,
+        PageRequest pageable = PageRequest.of(0, partySearchCondDto.limit(),
                 orders.get("type") == "desc" ? Sort.by(orders.get("column")).descending() : Sort.by(orders.get("column")).ascending());
 
         Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, pageable);
@@ -206,15 +207,14 @@ class SearchServiceTest {
     @Test
     void 파티방검색_제목_정렬_최신순() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setTitle("사람");
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto("사람", null, null, null, 10);
 
         Map<String, String> orders = new HashMap<>();
         orders.put("column", "latest");
         orders.put("type", "desc");
 
         //when
-        PageRequest pageable = PageRequest.of(0, 10,
+        PageRequest pageable = PageRequest.of(0, partySearchCondDto.limit(),
                 orders.get("type") == "desc" ? Sort.by(orders.get("column")).descending() : Sort.by(orders.get("column")).ascending());
 
         Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, pageable);
@@ -227,15 +227,14 @@ class SearchServiceTest {
     @Test
     void 파티방검색_제목_정렬_마감순() {
         //given
-        PartySearchCondDto partySearchCondDto = new PartySearchCondDto();
-        partySearchCondDto.setTitle("사람");
+        PartySearchCondDto partySearchCondDto = new PartySearchCondDto("사람", null, null, null, 10);
 
         Map<String, String> orders = new HashMap<>();
         orders.put("column", "deadline");
         orders.put("type", "asc");
 
         //when
-        PageRequest pageable = PageRequest.of(0, 10,
+        PageRequest pageable = PageRequest.of(0, partySearchCondDto.limit(),
                 orders.get("type") == "desc" ? Sort.by(orders.get("column")).descending() : Sort.by(orders.get("column")).ascending());
 
         Page<Party> parties = partyRepositoryCustom.searchPage(partySearchCondDto, pageable);
