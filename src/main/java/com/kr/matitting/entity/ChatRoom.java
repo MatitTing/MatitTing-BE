@@ -2,6 +2,7 @@ package com.kr.matitting.entity;
 
 import com.kr.matitting.constant.ChatRoomRole;
 import com.kr.matitting.constant.ChatRoomType;
+import com.kr.matitting.dto.ChatRoomUserDto;
 import com.kr.matitting.dto.ResponseChatRoomDto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,6 +19,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Getter
 @NoArgsConstructor
@@ -67,7 +69,13 @@ public class ChatRoom {
         user.addChatRoomUser(chatRoomUser);
     }
 
-    public void toDto() {
-        return new ResponseChatRoomDto();  
+    public ResponseChatRoomDto toDto() {
+        List<ChatRoomUserDto> chatRoomUsers =
+            getChatRoomUsers().stream().map(ChatRoomUser::toDto).toList();
+
+        return new ResponseChatRoomDto(
+            id, chatRoomUsers, participantCount, title, partyId, chatRoomType
+        );
+
     }
 }

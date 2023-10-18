@@ -7,7 +7,6 @@ import com.kr.matitting.dto.ResponseChatRoomDto;
 import com.kr.matitting.service.ChatService;
 import com.kr.matitting.service.GetOneOnOneChatRoomsService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -31,17 +30,18 @@ public class ChatController {
     }
 
 
-    // 1대1 채팅 신청
+
     // 1대1 채팅방 목록 불러오기
     @GetMapping("/api/chatRooms/1on1")   //
-    public ResponseEntity<List<ResponseChatRoomDto>> oneOnOneChatRooms(
+    public List<ResponseChatRoomDto> oneOnOneChatRooms(
         RequestOneOnOneChatRoomsDto requestOneOnOneChatRoomsDto
     ) {
 
-        List<ResponseChatRoomDto> responseChatRoomDtos = getOneOnOneChatRoomsService.getChatRooms(
+        return getOneOnOneChatRoomsService.getChatRooms(
             requestOneOnOneChatRoomsDto.getUserId());
-        return
     }
+
+    // 1대1 채팅 신청
 
 
 }

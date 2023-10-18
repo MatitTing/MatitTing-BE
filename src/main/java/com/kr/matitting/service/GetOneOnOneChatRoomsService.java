@@ -28,8 +28,11 @@ public class GetOneOnOneChatRoomsService {
             chatRooms.add(chatRoomUser.getChatRoom());
         }
 
-        chatRooms.stream().forEach(chatRoom -> chatRoom.toDto());
+        // 찾은 ChatRoom을 DTO로 변
+        List<ResponseChatRoomDto> chatRoomDtos = chatRooms.stream().map(
+            ChatRoom::toDto).toList();
 
-        return null;
+        // 채팅방 불러오는 로직
+        return chatRoomDtos;
     }
 }

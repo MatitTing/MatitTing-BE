@@ -2,6 +2,7 @@ package com.kr.matitting.entity;
 
 import com.kr.matitting.constant.Role;
 import com.kr.matitting.constant.SocialType;
+import com.kr.matitting.dto.UserDto;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -49,5 +50,9 @@ public class User extends BaseTimeEntity{
 
     public void addChatRoomUser(ChatRoomUser chatRoomUser) {
         this.chatRoomsUsers.add(chatRoomUser);
+    }
+
+    public UserDto toDto() {
+        return new UserDto(nickname, age, imgUrl, city);
     }
 }

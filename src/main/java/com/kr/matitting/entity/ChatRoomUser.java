@@ -1,6 +1,8 @@
 package com.kr.matitting.entity;
 
 import com.kr.matitting.constant.ChatRoomRole;
+import com.kr.matitting.dto.ChatRoomUserDto;
+import com.kr.matitting.dto.UserDto;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -39,5 +41,14 @@ public class ChatRoomUser {
         this.chatRoom = chatRoom;
         this.user = user;
         this.chatRoomRole = chatRoomRole;
+    }
+
+    public ChatRoomUserDto toDto() {
+         // DTO에는 유저의 정보를 포함을 시켜야 한다. 프로필 이름 성별
+        String nickName = user.getNickname();
+        int age = user.getAge();
+        String imgUrl = user.getImgUrl();
+        String city = user.getCity();
+        return new ChatRoomUserDto(id , nickName, age, imgUrl, city);
     }
 }
