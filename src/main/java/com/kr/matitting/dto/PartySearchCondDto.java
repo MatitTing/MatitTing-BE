@@ -1,15 +1,30 @@
 package com.kr.matitting.dto;
 
 import com.kr.matitting.constant.PartyStatus;
-import lombok.Data;
+import jakarta.validation.constraints.NotNull;
 
+import java.util.HashMap;
 import java.util.Map;
 
-@Data
-public class PartySearchCondDto {
-    private String title;
-    private String menu;
-    private PartyStatus status;
-    private Map<String, String> orders;
-    private int limit;
+public record PartySearchCondDto(
+        String title,
+        String menu,
+        PartyStatus status,
+        Map<String, String> orders,
+        @NotNull
+        Integer limit
+) {
+    public Map<String, String> checkOrder() {
+        if (orders == null) {
+            Map<String, String> orders = new HashMap<String, String>();
+            orders.put("column", "hit");
+            orders.put("type", "desc");
+            return orders;
+        }
+        return orders;
+    }
+
+    public PartySearchCondDto partySearchCondDto(String title, String menu, PartyStatus status, Map<String, String> orders, Integer limit) {
+        return new PartySearchCondDto(title, menu, status, orders, limit);
+    }
 }

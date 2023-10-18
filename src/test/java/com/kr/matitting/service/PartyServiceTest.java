@@ -1,13 +1,8 @@
 package com.kr.matitting.service;
 
-import com.kr.matitting.constant.PartyStatus;
-import com.kr.matitting.constant.Role;
-import com.kr.matitting.constant.SocialType;
+import com.kr.matitting.constant.*;
 import com.kr.matitting.dto.PartyJoinDto;
-import com.kr.matitting.entity.Party;
-import com.kr.matitting.entity.PartyJoin;
-import com.kr.matitting.entity.Team;
-import com.kr.matitting.entity.User;
+import com.kr.matitting.entity.*;
 import com.kr.matitting.repository.PartyJoinRepository;
 import com.kr.matitting.repository.PartyRepository;
 import com.kr.matitting.repository.PartyTeamRepository;
@@ -50,7 +45,6 @@ class PartyServiceTest {
                 .nickname("새싹개발자")
                 .age(26)
                 .imgUrl("https://www.naver.com")
-                .city("전주")
                 .role(Role.USER)
                 .socialType(SocialType.KAKAO)
                 .build();
@@ -62,16 +56,17 @@ class PartyServiceTest {
                 .nickname("안경잡이개발자")
                 .age(26)
                 .imgUrl("https://www.google.com")
-                .city("전주")
                 .role(Role.USER)
                 .socialType(SocialType.KAKAO)
                 .build();
         userRepository.save(guest);
 
+
         Party party = Party.builder()
                 .partyTitle("파티Test")
-                .menu("돈까스").status(PartyStatus.RECRUIT)
-                .partyDeadline(LocalDateTime.of(2023, 10, 12, 15, 23, 32))
+                .menu("돈까스")
+                .status(PartyStatus.RECRUIT)
+                .deadline(LocalDateTime.of(2023, 10, 12, 15, 23, 32))
                 .hit(1)
                 .build();
         partyRepository.save(party);
@@ -96,19 +91,19 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.WAIT));
 
         log.info("=== Party Join Save ===");
         partyService.joinParty(partyJoinDto);
 
         log.info("=== Party Select by PartyId And ParentId ===");
-        Optional<List<PartyJoin>> partyJoinList = partyJoinRepository.findByPartyIdAndLeaderId(partyJoinDto.getPartyId(), partyJoinDto.getLeaderId());
+        Optional<List<PartyJoin>> partyJoinList = partyJoinRepository.findByPartyIdAndLeaderId(partyJoinDto.partyId(), partyJoinDto.leaderId());
 
         //then
         assertThat(partyJoinList.get().size()).isEqualTo(1);
-        assertThat(partyJoinList.get().get(0).getParty().getId()).isEqualTo(partyJoinDto.getPartyId());
-        assertThat(partyJoinList.get().get(0).getLeaderId()).isEqualTo(partyJoinDto.getLeaderId());
-        assertThat(partyJoinList.get().get(0).getUserId()).isEqualTo(partyJoinDto.getUserId());
+        assertThat(partyJoinList.get().get(0).getParty().getId()).isEqualTo(partyJoinDto.partyId());
+        assertThat(partyJoinList.get().get(0).getLeaderId()).isEqualTo(partyJoinDto.leaderId());
+        assertThat(partyJoinList.get().get(0).getUserId()).isEqualTo(partyJoinDto.userId());
     }
 
     @Test
@@ -119,9 +114,7 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         //when, then
-        PartyJoinDto partyJoinDto = new PartyJoinDto();
-        partyJoinDto.setPartyId(findParty.get().getId());
-        partyJoinDto.setUserId(guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), 100000000L, guest.get().getId(), Optional.of(PartyJoinStatus.WAIT));
 
         assertThrows(IllegalStateException.class, () -> {
             partyService.joinParty(partyJoinDto);
@@ -136,9 +129,7 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         //when, then
-        PartyJoinDto partyJoinDto = new PartyJoinDto();
-        partyJoinDto.setLeaderId(user.get().getId());
-        partyJoinDto.setUserId(guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(100000L, user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.WAIT));
 
         assertThrows(IllegalStateException.class, () -> {
             partyService.joinParty(partyJoinDto);
@@ -153,9 +144,7 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         //when, then
-        PartyJoinDto partyJoinDto = new PartyJoinDto();
-        partyJoinDto.setPartyId(findParty.get().getId());
-        partyJoinDto.setLeaderId(user.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), 100000L, Optional.of(PartyJoinStatus.WAIT));
 
         assertThrows(IllegalStateException.class, () -> {
             partyService.joinParty(partyJoinDto);
@@ -170,11 +159,10 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         log.info("=== Party Join Save ===");
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.ACCEPT));
         partyService.joinParty(partyJoinDto);
 
         //when
-        partyJoinDto.Accept();
         String result = partyService.decideUser(partyJoinDto);
         Optional<List<Team>> findTeams = teamRepository.findByPartyId(findParty.get().getId());
 
@@ -191,7 +179,7 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         log.info("=== Party Join Save ===");
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.WAIT));
         partyService.joinParty(partyJoinDto);
 
         //when, then
@@ -207,8 +195,7 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
-        partyJoinDto.Accept();
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.ACCEPT));
         partyService.joinParty(partyJoinDto);
         partyRepository.delete(findParty.get());
 
@@ -225,8 +212,7 @@ class PartyServiceTest {
 
 
         //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
-        partyJoinDto.Accept();
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.ACCEPT));
         partyService.joinParty(partyJoinDto);
         userRepository.delete(user.get());
         userRepository.delete(guest.get());
@@ -243,11 +229,10 @@ class PartyServiceTest {
         Optional<User> user = userRepository.findBySocialId(userSocialId);
 
         log.info("=== Party Join Save ===");
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.get().getId(), guest.get().getId(), Optional.of(PartyJoinStatus.REFUSE));
         partyService.joinParty(partyJoinDto);
 
         //when
-        partyJoinDto.Refuse();
         String result = partyService.decideUser(partyJoinDto);
         Optional<List<Team>> findTeams = teamRepository.findByPartyId(findParty.get().getId());
 

@@ -1,86 +1,83 @@
 package com.kr.matitting.controller;
 
-import com.auth0.jwt.interfaces.DecodedJWT;
+import com.kr.matitting.constant.Role;
+import com.kr.matitting.constant.SocialType;
+import com.kr.matitting.dto.UserSignUpDto;
 import com.kr.matitting.entity.User;
-import com.kr.matitting.exception.user.UserException;
-import com.kr.matitting.exception.user.UserExceptionType;
+import com.kr.matitting.exception.token.TokenException;
+import com.kr.matitting.exception.token.TokenExceptionType;
 import com.kr.matitting.jwt.service.JwtService;
 import com.kr.matitting.service.UserService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
-@Tag(name = "인증", description = "인증 관련 api")
-@Controller
+@RestController
 @RequiredArgsConstructor
 @RequestMapping("/oauth2/")
 public class OAuthController {
     private final UserService userService;
     private final JwtService jwtService;
 
-    @GetMapping("signUp")
-    public ResponseEntity loadOAuthSignUp(@RequestParam String email, @RequestParam String socialType, @RequestParam String socialId) {
-        if (email == null || socialId == null || socialType == null) {
-            throw new UserException(UserExceptionType.NULL_POINT_USER);
+    @GetMapping("login")
+    public ResponseEntity loadOAuthSignUp(HttpServletResponse response,
+                                          @RequestParam @NotNull String email,
+                                          @RequestParam @NotNull SocialType socialType,
+                                          @RequestParam @NotNull String socialId,
+                                          @RequestParam @NotNull Role role,
+                                          @RequestParam(required = false) String accessToken,
+                                          @RequestParam(required = false) String refreshToken) {
+        if (role == Role.GUEST) {
+            Map<String, String> userInfo = new HashMap<>();
+            userInfo.put("email", email);
+            userInfo.put("socialType", socialType.toString());
+            userInfo.put("socialId", socialId);
+            userInfo.put("role", role.getKey());
+            return ResponseEntity.ok().body(userInfo);
         }
-        Map<String, String> userInfo = new HashMap<>();
-        userInfo.put("email", email);
-        userInfo.put("socialType", socialType);
-        userInfo.put("socialId", socialId);
-        return ResponseEntity.ok().body(userInfo);
-    }
+        else if (role == Role.USER) {
+            response.addHeader(jwtService.getAccessHeader(), accessToken);
+            response.addHeader(jwtService.getRefreshHeader(), refreshToken);
 
-    @PostMapping("signUp")
-    public ResponseEntity loadOAuthSignUp(HttpServletRequest request) {
-        User user = User.builder().email(request.getParameter("email")).build();
-        String newUserEmail = userService.signUp(user);
-        if (newUserEmail == null) {
-            return ResponseEntity.badRequest().body("회원가입 실패!");
+            User user = userService.getMyInfo(socialType, socialId);
+            return ResponseEntity.ok().body(user);
         }
-        return ResponseEntity.ok().body("회원가입 성공!");
+        return ResponseEntity.badRequest().body("로그인이 실패했습니다.");
+    }
+    @PostMapping("signUp")
+    public ResponseEntity<User> loadOAuthSignUp(UserSignUpDto userSignUpDto) {
+        User user = userService.signUp(userSignUpDto);
+        return ResponseEntity.ok().body(user);
     }
 
     @GetMapping("loginSuccess")
-    public ResponseEntity success() {
+    public ResponseEntity<String> success() {
         return ResponseEntity.ok("login success");
     }
 
     @PostMapping("logout")
-    public ResponseEntity logout(HttpServletRequest request) {
+    public ResponseEntity<String> logout(HttpServletRequest request) {
         String accessToken = jwtService.extractToken(request).get();
         userService.logout(accessToken);
         return ResponseEntity.ok("logout Success");
     }
 
     @DeleteMapping("withdraw")
-    public ResponseEntity withdraw(HttpServletRequest request) {
+    public ResponseEntity<String> withdraw(HttpServletRequest request) {
         String accessToken = jwtService.extractToken(request).get();
         userService.withdraw(accessToken);
         return ResponseEntity.ok("withdraw Success");
     }
-    
+
     @GetMapping("renewToken")
-    public ResponseEntity renewToken(HttpServletRequest request) {
-        try {
-            String refreshToken = jwtService.extractToken(request).get();
-            return ResponseEntity.ok("BEARER " + jwtService.renewToken(refreshToken));
-        } catch (NoSuchElementException e) {
-            return ResponseEntity.badRequest().body("Refresh Token 이 만료되었습니다");
-        } catch (UsernameNotFoundException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<String> renewToken(HttpServletRequest request) {
+        String refreshToken = jwtService.extractToken(request).orElseThrow(() -> new TokenException(TokenExceptionType.INVALID_REFRESH_TOKEN));
+        return ResponseEntity.ok("BEARER " + jwtService.renewToken(refreshToken));
     }
 }

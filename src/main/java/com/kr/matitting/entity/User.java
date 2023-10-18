@@ -1,5 +1,6 @@
 package com.kr.matitting.entity;
 
+import com.kr.matitting.constant.Gender;
 import com.kr.matitting.constant.Role;
 import com.kr.matitting.constant.SocialType;
 import com.kr.matitting.dto.UserDto;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -21,10 +23,11 @@ public class User extends BaseTimeEntity{
     @Column(name = "user_id")
     private Long id;    //회원 Id
 
-    @Column(length = 30, unique = true, name = "social_id")
+    @Column(nullable = false, length = 30, unique = true)
     private String socialId;   //카카오 or 네이버 인증 Id
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private SocialType socialType; // KAKAO, NAVER, GOOGLE
 
     @Column(nullable = false, length = 30, unique = true)
@@ -34,25 +37,18 @@ public class User extends BaseTimeEntity{
     private String nickname; //닉네임
 
     @Column(nullable = false, length = 30)
-    private int age; //나이
+    private Integer age; //나이
 
-    @Column(nullable = true, name = "user_img")
+    @Column(name = "user_img")
     private String imgUrl; //프로필 이미지
 
-    @Column(name = "city")
-    private String city; //사는 도시
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Gender gender; //성별
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role; //신규유저 or 기존유저
 
-    @OneToMany(mappedBy = "user")
-    private List<ChatRoomUser> chatRoomsUsers = new ArrayList<>();
 
-    public void addChatRoomUser(ChatRoomUser chatRoomUser) {
-        this.chatRoomsUsers.add(chatRoomUser);
-    }
-
-    public UserDto toDto() {
-        return new UserDto(nickname, age, imgUrl, city);
-    }
 }
