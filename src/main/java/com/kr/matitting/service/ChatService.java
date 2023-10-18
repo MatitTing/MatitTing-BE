@@ -33,6 +33,7 @@ public class ChatService {
             .orElseThrow();
 
         ChatMessage chatMessage = new ChatMessage(chatRoom, chatRoomUser, chatRequestDto.getContent());
+        chatMessageRepository.save(chatMessage);
 
         return chatMessage.toDto();
     }
