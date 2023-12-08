@@ -11,7 +11,6 @@ import com.kr.matitting.entity.Team;
 import com.kr.matitting.entity.User;
 import com.kr.matitting.exception.Map.MapException;
 import com.kr.matitting.exception.Map.MapExceptionType;
-import com.kr.matitting.exception.main.MainExceptionType;
 import com.kr.matitting.exception.party.PartyException;
 import com.kr.matitting.exception.party.PartyExceptionType;
 import com.kr.matitting.exception.partyjoin.PartyJoinException;
@@ -22,21 +21,19 @@ import com.kr.matitting.repository.PartyJoinRepository;
 import com.kr.matitting.repository.PartyRepository;
 import com.kr.matitting.repository.PartyTeamRepository;
 import com.kr.matitting.repository.UserRepository;
-import com.kr.matitting.repository.PartyRepositoryImpl;
+import com.kr.matitting.redis.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.awt.geom.Point2D;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static com.kr.matitting.dto.ChatRoomDto.*;
 
@@ -53,6 +50,8 @@ public class PartyService {
     private final PartyRepository partyRepository;
     private final UserRepository userRepository;
     private final MapService mapService;
+    private final RedisUtil redisUtil;
+
     public ResponsePartyDto getPartyInfo(Long partyId) {
         Party party = partyRepository.findById(partyId).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
         increaseHit(partyId);
@@ -94,8 +93,17 @@ public class PartyService {
 
         eventPublisher.publishEvent(new CreateRoomEvent(savedParty.getId(), user.getId()));
 
+        // 파티 정보와 마감시간을 redis에 input
+        long partyTime = getEpochMilli(savedParty.getPartyTime().plusHours(1));
+        long now = getEpochMilli(LocalDateTime.now());
+
+        redisUtil.setDateExpire("partyId", String.valueOf(savedParty.getId()), (partyTime-now));
         return partyId;
 
+    }
+
+    private static long getEpochMilli(LocalDateTime dateTime) {
+        return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
     private Point2D.Double setLocationFunc(double latitude, double longitude) {
