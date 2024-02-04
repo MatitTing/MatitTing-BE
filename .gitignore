@@ -41,3 +41,6 @@ out/
 
 ### sql ###
 **.sql
+
+# Ignore QueryDSL generated Q classes
+/src/main/generated/com/kr/matitting/entity/
