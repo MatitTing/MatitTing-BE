@@ -1,5 +1,6 @@
 package com.kr.matitting.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,10 +19,14 @@ public class Review {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "review_id")
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(nullable = false, name = "user_id")
     @NotNull
     private User host;
+
     @NotNull
-    private User volunteer;
+    private Long volunteer;
     @NotBlank
     private String content;
 }
