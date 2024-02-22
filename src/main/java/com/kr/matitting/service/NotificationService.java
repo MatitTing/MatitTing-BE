@@ -60,7 +60,8 @@ public class NotificationService {
                     .data(data)
             );
         } catch (IOException exception) {
-            emitterRepository.deleteById(emitterId);
+//            emitterRepository.deleteById(emitterId);
+            log.error("아오!!");
         }
     }
 

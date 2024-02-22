@@ -26,7 +26,7 @@ public class ReviewService {
 
         Review review = Review.builder()
                 .host(host)
-                .volunteer(user)
+                .volunteer(user.getId())
                 .content(reviewDto.getContent())
                 .build();
         Review saved = reviewRepository.save(review);
