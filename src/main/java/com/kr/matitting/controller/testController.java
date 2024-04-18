@@ -1,20 +1,19 @@
 package com.kr.matitting.controller;
 
+import ch.qos.logback.core.model.Model;
 import com.kr.matitting.constant.*;
 import com.kr.matitting.dto.ResponseDummyDataDto;
 import com.kr.matitting.entity.Party;
 import com.kr.matitting.entity.PartyJoin;
 import com.kr.matitting.entity.User;
 import com.kr.matitting.jwt.service.JwtService;
-import com.kr.matitting.repository.PartyJoinRepository;
-import com.kr.matitting.repository.PartyRepository;
-import com.kr.matitting.repository.UserRepository;
+import com.kr.matitting.repository.*;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 
 import java.time.LocalDateTime;
@@ -27,6 +26,11 @@ public class testController {
     private final UserRepository userRepository;
     private final PartyRepository partyRepository;
     private final PartyJoinRepository partyJoinRepository;
+    private final PartyTeamRepository teamRepository;
+    private final ReviewRepository reviewRepository;
+    private final ChatRepository chatRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final ChatUserRepository chatUserRepository;
     private final JwtService jwtService;
 
     @GetMapping("/home")
@@ -35,7 +39,7 @@ public class testController {
     }
 
     @Operation(summary = "유저 더미데이터 생성 1", description = "유저 더미데이터 생성 API \n\n" +
-                                                        "해당 API 요청 시 유저 1명이 생성됩니다.\n\n"
+            "해당 API 요청 시 유저 1명이 생성됩니다.\n\n"
     )
     @GetMapping("/matitting")
     public ResponseEntity<User> dummy_data(HttpServletResponse response) {
@@ -65,7 +69,7 @@ public class testController {
         return ResponseEntity.ok(user);
     }
     @Operation(summary = "유저 더미데이터 생성 2", description = "유저 더미데이터 생성 API \n\n" +
-                                                            "해당 API 요청 시 유저 1명이 생성됩니다. \n\n"
+            "해당 API 요청 시 유저 1명이 생성됩니다. \n\n"
     )
     @GetMapping("/matitting2")
     public ResponseEntity<User> dummy_data2(HttpServletResponse response) {
@@ -95,18 +99,16 @@ public class testController {
         return ResponseEntity.ok(user);
     }
     @Operation(summary = "유저, 파티 더미데이터 생성", description = "유저, 파티 더미데이터 생성 API 입니다. \n\n" +
-                                                    "해당 API 요청 완료 시 \n\n" +
-                                                    "1. 사용자 1 생성\n\n" +
-                                                    "    - 파티 생성\n\n" +
-                                                    "    - 사용자2 파티에 참가 신청\n\n" +
-                                                    "2. 사용자 2 생성\n\n" +
-                                                    "    - 파티 생성\n\n" +
-                                                    "    - 사용자1 파티에 참가 신청 \n\n"
+            "해당 API 요청 완료 시 \n\n" +
+            "1. 사용자 1 생성\n\n" +
+            "    - 파티 생성\n\n" +
+            "    - 사용자2 파티에 참가 신청\n\n" +
+            "2. 사용자 2 생성\n\n" +
+            "    - 파티 생성\n\n" +
+            "    - 사용자1 파티에 참가 신청 \n\n"
     )
     @GetMapping("/matitting3")
     public ResponseEntity<ResponseDummyDataDto> test(HttpServletResponse response) {
-        Optional<User> findUser = userRepository.findBySocialId("3035953918");
-
         User user1 = User.builder()
                 .socialId("3035953918")
                 .oauthProvider(OauthProvider.KAKAO)
@@ -195,5 +197,18 @@ public class testController {
                 .build();
         partyJoinRepository.save(partyJoin2);
         return ResponseEntity.ok(new ResponseDummyDataDto(saved1AccessToken, saved1refreshToken, saved2AccessToken, saved2refreshToken, party1Id, party2Id));
+    }
+    @Operation(summary = "DB 데이터 초기화", description = "모든 데이터를 삭제하는 API 테스트 시에만 사용 예정")
+    @DeleteMapping("/matitting")
+    public ResponseEntity<?> deleteAll() {
+        partyRepository.deleteAll();
+        userRepository.deleteAll();
+        teamRepository.deleteAll();
+        reviewRepository.deleteAll();
+        chatRepository.deleteAll();
+        chatRoomRepository.deleteAll();
+        chatUserRepository.deleteAll();
+
+        return ResponseEntity.ok("success");
     }
 }

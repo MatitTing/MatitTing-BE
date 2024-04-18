@@ -1,24 +1,19 @@
 package com.kr.matitting.service;
 
-import com.kr.matitting.dto.ChatMessage;
-import com.kr.matitting.dto.ResponseChatDto;
-import com.kr.matitting.dto.ResponseChatRoomListDto;
-import com.kr.matitting.dto.ResponseChatRoomUserDto;
+import com.kr.matitting.constant.MessageType;
+import com.kr.matitting.dto.*;
 import com.kr.matitting.entity.ChatRoom;
 import com.kr.matitting.entity.ChatUser;
 import com.kr.matitting.entity.Party;
 import com.kr.matitting.entity.User;
 import com.kr.matitting.exception.chat.ChatException;
-import com.kr.matitting.exception.party.PartyException;
-import com.kr.matitting.exception.user.UserException;
 import com.kr.matitting.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,20 +21,17 @@ import java.util.Optional;
 
 import static com.kr.matitting.constant.Role.HOST;
 import static com.kr.matitting.constant.Role.VOLUNTEER;
-import static com.kr.matitting.dto.ChatRoomDto.CreateRoomEvent;
-import static com.kr.matitting.dto.ChatRoomDto.JoinRoomEvent;
-import static com.kr.matitting.entity.ChatRoom.createRoom;
 import static com.kr.matitting.exception.chat.ChatExceptionType.*;
-import static com.kr.matitting.exception.party.PartyExceptionType.NOT_FOUND_PARTY;
-import static com.kr.matitting.exception.user.UserExceptionType.INVALID_ROLE_USER;
 import static com.kr.matitting.exception.user.UserExceptionType.NOT_FOUND_USER;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatService {
     private final ChatUserRepository chatUserRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomRepositoryImpl chatRoomRepositoryImpl;
+    private final ChatRepositoryCustomImpl chatRepositoryCustomImpl;
     private final PartyRepository partyRepository;
     private final UserRepository userRepository;
     private final SimpMessageSendingOperations messagingTemplate;
@@ -65,19 +57,11 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public List<ResponseChatDto> getChats(Long userId, Long roomId, Long lastChatId, Pageable pageable) {
-        ChatRoom chatRoom = chatRoomRepository.findById(roomId).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
+    public ResponseChatListDto getChats(Long userId, Long roomId, Long lastChatId, Pageable pageable) {
+        chatRoomRepository.findById(roomId).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
+        chatUserRepository.findByUserIdAndChatRoomId(userId, roomId).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_USER_INFO));
 
-        return chatRoom.getChatList().stream()
-                .map(chat -> {
-                    ChatUser user = chat.getSendUser();
-                    return ResponseChatDto.builder()
-                            .senderId(user.getId())
-                            .nickname(user.getNickname())
-                            .message(chat.getMessage())
-                            .createAt(chat.getCreateDate())
-                            .build();
-                }).toList();
+        return chatRepositoryCustomImpl.getChatList(roomId, pageable, lastChatId);
     }
 
     // 채팅방 유저 강퇴 - 방장만 가능
@@ -110,19 +94,16 @@ public class ChatService {
     }
 
     //파티방 생성 - 파티 글 생성 완료 시 실행
-    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
-    public void createChatRoom(CreateRoomEvent createRoomEvent) {
-        Party party = partyRepository.findById(createRoomEvent.getPartyId()).orElseThrow(
-                () -> new PartyException(NOT_FOUND_PARTY)
-        );
-        User user = userRepository.findById(createRoomEvent.getUserId()).orElseThrow(
-                () -> new UserException(NOT_FOUND_USER)
-        );
-        ChatRoom room = createRoom(party, user, party.getPartyTitle());
+    @Transactional
+    public ChatRoom createChatRoom(Party party, User user) {
+        ChatRoom room = new ChatRoom(party, user, party.getPartyTitle());
         chatRoomRepository.save(room);
 
-        ChatUser chatUser = ChatUser.createChatUser(room, user, HOST);
+        ChatUser chatUser = new ChatUser(room, user, HOST);
         chatUserRepository.save(chatUser);
+
+        return room;
+
     }
 
     @Transactional(readOnly = true)
@@ -131,25 +112,37 @@ public class ChatService {
     }
 
     @Transactional
-    public void sendMessage(Long userId, ChatMessage chatMessage) {
-        Long roomId = chatMessage.getRoomId();
+    public void sendMessage(User user, ChatMessageDto chatMessageDto) {
+        Long roomId = chatMessageDto.getRoomId();
         ChatRoom chatRoom = chatRoomRepository.findById(roomId).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
         chatRoom.setModifiedDate(LocalDateTime.now());
-        chatRoom.getChatUserList().stream().map(user -> user.getUser().getId().equals(userId)).findAny().orElseThrow(() -> new UserException(INVALID_ROLE_USER));
 
-        messagingTemplate.convertAndSend("/sub/chat/room/" + chatMessage.getRoomId(), chatMessage);
+        chatRoom.getChatUserList().stream()
+                .filter(chatUser -> chatUser.getUser().equals(user))
+                .findAny()
+                .orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_USER_INFO));
+
+        if (MessageType.ENTER.equals(chatMessageDto.getType())) {
+            chatMessageDto.setMessage(chatMessageDto.getChatUserId() + "님이 입장하였습니다.");
+        }
+
+        messagingTemplate.convertAndSend("/sub/chat/room/" + chatMessageDto.getRoomId(), chatMessageDto);
     }
 
     // 파티 참가 요청 수락 시 채팅유저에 정보 추가
-    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
-    public void addParticipant(JoinRoomEvent joinRoomEvent) {
+    @Transactional
+    public void addParticipant(Party party, User volunteer) {
 
-        ChatRoom chatRoom = chatRoomRepository.findByPartyId(joinRoomEvent.getPartyId()).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
-
-        User user = userRepository.findById(joinRoomEvent.getUserId()).orElseThrow(() -> new UserException(NOT_FOUND_USER));
-
-        ChatUser chatUser = ChatUser.createChatUser(chatRoom, user, VOLUNTEER);
+        ChatRoom chatRoom = chatRoomRepository.findByPartyId(party.getId())
+                .orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
+        ChatUser chatUser = new ChatUser(chatRoom, volunteer, VOLUNTEER);
 
         chatUserRepository.save(chatUser);
+    }
+
+    public ResponseChatRoomInfoDto getChatRoomInfo(Long chatRoomId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId).orElseThrow(() -> new ChatException(NOT_FOUND_CHAT_ROOM));
+
+        return new ResponseChatRoomInfoDto(chatRoom);
     }
 }

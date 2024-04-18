@@ -4,6 +4,9 @@ import com.kr.matitting.constant.Gender;
 import com.kr.matitting.constant.PartyAge;
 import com.kr.matitting.constant.PartyCategory;
 import com.kr.matitting.constant.PartyStatus;
+import com.kr.matitting.entity.Party;
+import com.kr.matitting.entity.Review;
+import com.kr.matitting.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -12,14 +15,19 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import static java.lang.Math.min;
 
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResponsePartyDetailDto {
-    @Schema(description = "유저 id", example = "10")
-    private Long userId;
+    @Schema(description = "파티 방장 id", example = "1")
+    private Long hostId;
 
     @Schema(description = "방장 여부", example = "true or false")
     private Boolean isLeader;
@@ -50,7 +58,7 @@ public class ResponsePartyDetailDto {
     @Schema(description = "성별", nullable = false, example = "ALL")
     @NotNull
     private Gender gender;
-    @Schema(description = "연령대", nullable = false, example = "2030")
+    @Schema(description = "연령대", nullable = false, example = "TWENTY")
     @NotNull
     private PartyAge age;
     @Schema(description = "파티 모집 마감 시간", nullable = false, example = "2023-10-24T09:00:00")
@@ -67,7 +75,7 @@ public class ResponsePartyDetailDto {
     private Integer participate;
     @Schema(description = "파티 메뉴", nullable = true, example = "붕어빵")
     private String menu;
-    @Schema(description = "카테고리", nullable = false, example = "한식")
+    @Schema(description = "카테고리", nullable = false, example = "KOREAN")
     private PartyCategory category;
     @Schema(description = "썸네일", nullable = true, example = " https://matitting.s3.ap-northeast-2.amazonaws.com/korean.jpeg")
     @NotNull
@@ -75,4 +83,34 @@ public class ResponsePartyDetailDto {
     @Schema(description = "조회수", nullable = false, example = "1")
     @NotNull
     private Integer hit;
+
+    private List<ReviewInfoRes> reviewInfoRes = new ArrayList<>();
+    public static ResponsePartyDetailDto from(Party party, User user) {
+        User host = party.getUser();
+        List<Review> reviews = host.getReceivedReviews().stream().sorted(Comparator.comparing(Review::getCreateDate).reversed()).toList().subList(0, min(3, host.getReceivedReviews().size()));
+        List<ReviewInfoRes> reviewInfoResStream = reviews.stream().map(review -> ReviewInfoRes.toDto(review, host)).toList();
+        return ResponsePartyDetailDto.builder()
+                .hostId(host.getId())
+                .isLeader(user != null && user.getId().equals(host.getId()))
+                .partyId(party.getId())
+                .partyTitle(party.getPartyTitle())
+                .partyContent(party.getPartyContent())
+                .address(party.getAddress())
+                .longitude(party.getLongitude())
+                .latitude(party.getLatitude())
+                .partyPlaceName(party.getPartyPlaceName())
+                .status(party.getStatus())
+                .gender(party.getGender())
+                .age(party.getAge())
+                .deadline(party.getDeadline())
+                .partyTime(party.getPartyTime())
+                .totalParticipant(party.getTotalParticipant())
+                .participate(party.getParticipantCount())
+                .menu(party.getMenu())
+                .category(party.getCategory())
+                .thumbnail(party.getThumbnail())
+                .hit(party.getHit())
+                .reviewInfoRes(reviewInfoResStream)
+                .build();
+    }
 }

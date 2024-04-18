@@ -1,865 +1,436 @@
 package com.kr.matitting.service;
 
 import com.kr.matitting.constant.*;
-import com.kr.matitting.dto.PartyCreateDto;
-import com.kr.matitting.dto.PartyJoinDto;
-import com.kr.matitting.dto.PartyUpdateDto;
-import com.kr.matitting.dto.ResponsePartyDto;
-import com.kr.matitting.entity.*;
+import com.kr.matitting.dto.*;
+import com.kr.matitting.entity.Party;
+import com.kr.matitting.entity.User;
 import com.kr.matitting.exception.party.PartyException;
 import com.kr.matitting.exception.partyjoin.PartyJoinException;
-
 import com.kr.matitting.exception.user.UserException;
-import com.kr.matitting.repository.PartyJoinRepository;
 import com.kr.matitting.repository.PartyRepository;
-import com.kr.matitting.repository.PartyTeamRepository;
 import com.kr.matitting.repository.UserRepository;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
 
+import static com.kr.matitting.constant.Gender.*;
+import static com.kr.matitting.constant.PartyCategory.JAPANESE;
+import static com.kr.matitting.constant.PartyCategory.WESTERN;
+import static com.kr.matitting.constant.PartyStatus.PARTY_FINISH;
+import static com.kr.matitting.constant.PartyStatus.RECRUIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Slf4j
-@Transactional
 @SpringBootTest
+@Transactional
 class PartyServiceTest {
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private PartyRepository partyRepository;
-    @Autowired
-    private PartyJoinRepository partyJoinRepository;
-    @Autowired
-    private PartyTeamRepository teamRepository;
+
     @Autowired
     private PartyService partyService;
     @Autowired
-    private MapService mapService;
+    private PartyRepository partyRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private ReviewService reviewService;
 
-    public static Long partyId;
-    public static User user;
-    public static List<Long> partyId_list = new ArrayList<>();
-    public static String guestSocialId = "12345";
+    //사용자 1
+    public User user1;
+    //사용자 2
+    public User user2;
+    public Party party1;
+    public Party party2;
 
     @BeforeEach
-    public void 데이터생성() {
-        user = User.builder()
-                .socialId("12345")
-                .oauthProvider(OauthProvider.KAKAO)
-                .email("test@naver.com")
-                .nickname("새싹개발자")
-                .age(26)
-                .imgUrl("증명사진.jpg")
-                .gender(Gender.MALE)
-                .role(Role.USER)
-                .build();
-        userRepository.save(user);
+    void setup() {
+        User user1 = new User("1123213321",
+                OauthProvider.NAVER,
+                "test@naver.com",
+                "안경잡이개발자",
+                20,
+                null,
+                MALE,
+                Role.USER
+        );
+        this.user1 = userRepository.save(user1);
 
-        Party party = Party.builder()
-                .partyTitle("맛있팅 참여하세요")
-                .partyContent("저는 돈까스를 좋아합니다")
-                .address("서울 마포구 포은로2나길 44")
-                .latitude(37.550457)
-                .longitude(126.909708)
-                .status(PartyStatus.RECRUIT)
-                .deadline(LocalDateTime.now().plusDays(1))
-                .partyTime(LocalDateTime.now().plusDays(3))
-                .totalParticipant(4)
-                .participantCount(1)
-                .gender(Gender.ALL)
-                .age(PartyAge.AGE2030)
-                .hit(0)
-                .menu("치~즈돈까스")
-                .category(PartyCategory.JAPANESE)
-                .user(user)
-                .build();
 
-        Party save = partyRepository.save(party);
-        partyId = save.getId();
-
-        User user1 = User.builder()
-                .socialId("098")
-                .oauthProvider(OauthProvider.KAKAO)
-                .email("user1@naver.com")
-                .nickname("User1")
-                .age(26)
-                .imgUrl("첫째 증명사진.jpg")
-                .gender(Gender.MALE)
-                .role(Role.USER)
-                .build();
 
         User user2 = User.builder()
-                .socialId("456")
-                .oauthProvider(OauthProvider.NAVER)
-                .email("user2@naver.com")
-                .nickname("User2")
-                .age(20)
-                .imgUrl("둘째 증명사진.jpg")
-                .gender(Gender.FEMALE)
-                .role(Role.USER)
-                .build();
-
-        User user3 = User.builder()
-                .socialId("836")
+                .socialId("113929292")
                 .oauthProvider(OauthProvider.KAKAO)
-                .email("user3@naver.com")
-                .nickname("User3")
-                .age(36)
-                .imgUrl("셋째 증명사진.jpg")
-                .gender(Gender.MALE)
+                .email("test@kakao.com")
+                .nickname("잔디 개발자")
+                .age(30)
+                .imgUrl("야옹.jpg")
+                .gender(MALE)
                 .role(Role.USER)
+                .receivedReviews(new ArrayList<>())
+                .sendReviews(new ArrayList<>())
                 .build();
-        userRepository.save(user1);
-        userRepository.save(user2);
-        userRepository.save(user3);
+        this.user2 = userRepository.save(user2);
 
-        List<User> users = new ArrayList<>();
-        users.add(user1);
-        users.add(user2);
-        users.add(user3);
+        Party party1 = Party.builder()
+                .partyTitle("새싹개발자와 돈까스를 먹자!")
+                .partyContent("치즈 돈까스 vs 생선 돈까스!")
+                .address("서울특별시 마포구 포은로2나길 44")
+                .partyPlaceName("크레이지 카츠")
+                .longitude(126.90970359894729)
+                .latitude(37.55045202364851)
+                .status(RECRUIT)
+                .deadline(LocalDateTime.now().plusDays(3))
+                .partyTime(LocalDateTime.now().plusDays(3).plusHours(1))
+                .totalParticipant(4)
+                .participantCount(1)
+                .gender(ALL)
+                .age(PartyAge.ALL)
+                .hit(0)
+                .thumbnail("https://matitting.s3.ap-northeast-2.amazonaws.com/japanese.jpeg")
+                .menu("돈까스")
+                .category(JAPANESE)
+                .user(this.user1)
+                .build();
+        this.party1 = partyRepository.save(party1);
 
-        List<String> title_list = new ArrayList<>();
-        title_list.add("서울에서 만나요");
-        title_list.add("수원에서 만나요");
-        title_list.add("전주에서 만나요");
-        title_list.add("광주에서 만나요");
-        title_list.add("전국에서 만나요");
-
-        List<PartyStatus> status_list = new ArrayList<>();
-        status_list.add(PartyStatus.RECRUIT);
-        status_list.add(PartyStatus.RECRUIT);
-        status_list.add(PartyStatus.FINISH);
-        status_list.add(PartyStatus.RECRUIT);
-        status_list.add(PartyStatus.FINISH);
-        status_list.add(PartyStatus.FINISH);
-        status_list.add(PartyStatus.RECRUIT);
-
-        List<String> menu_list = new ArrayList<>();
-        menu_list.add("돈까스");
-        menu_list.add("피자");
-        menu_list.add("치킨");
-        menu_list.add("짜장면");
-        menu_list.add("뇨끼");
-        menu_list.add("김치볶음밥");
-        menu_list.add("삼겹살");
-
-        List<PartyCategory> category_list = new ArrayList<>();
-        category_list.add(PartyCategory.JAPANESE);
-        category_list.add(PartyCategory.WESTERN);
-        category_list.add(PartyCategory.KOREAN);
-        category_list.add(PartyCategory.CHINESE);
-        category_list.add(PartyCategory.WESTERN);
-        category_list.add(PartyCategory.KOREAN);
-        category_list.add(PartyCategory.KOREAN);
-
-        List<LocalDateTime> deadline_list = new ArrayList<>();
-        deadline_list.add(LocalDateTime.now().plusDays(1));
-        deadline_list.add(LocalDateTime.now().plusDays(2));
-        deadline_list.add(LocalDateTime.now().plusDays(3));
-
-        List<LocalDateTime> partyTime_list = new ArrayList<>();
-        partyTime_list.add(LocalDateTime.now().plusDays(3));
-        partyTime_list.add(LocalDateTime.now().plusDays(4));
-        partyTime_list.add(LocalDateTime.now().plusDays(5));
-
-        List<Integer> total_list = new ArrayList<>();
-        total_list.add(3);
-        total_list.add(4);
-        total_list.add(5);
-        total_list.add(6);
-
-        List<Integer> current_list = new ArrayList<>();
-        current_list.add(1);
-        current_list.add(2);
-        current_list.add(3);
-
-        List<Gender> gender = new ArrayList<>();
-        gender.add(Gender.ALL);
-        gender.add(Gender.FEMALE);
-        gender.add(Gender.MALE);
-
-        List<PartyAge> age = new ArrayList<>();
-        age.add(PartyAge.ALL);
-        age.add(PartyAge.AGE2030);
-        age.add(PartyAge.AGE3040);
-        age.add(PartyAge.AGE40);
-
-        Random random = new Random();
-
-        for (int i = 0; i < 20; i++) {
-            Party newParty = Party.builder()
-                    .partyTitle(title_list.get(i % 5))
-                    .partyContent(random_word(random, 30))
-                    .address(random_word(random, 10))
-                    .latitude(Math.random())
-                    .longitude(Math.random())
-                    .status(status_list.get(i % 7))
-                    .deadline(deadline_list.get(i%3))
-                    .partyTime(partyTime_list.get(i%3))
-                    .totalParticipant(total_list.get(i%4))
-                    .participantCount(current_list.get(i%3))
-                    .gender(gender.get(i%3))
-                    .age(age.get(i%4))
-                    .hit((int) Math.random())
-                    .menu(menu_list.get(i % 7))
-                    .category(category_list.get(i%7))
-                    .user(users.get(i%3))
-                    .build();
-            Party saveParty = partyRepository.save(newParty);
-            partyId_list.add(saveParty.getId());
-        }
+        Party party2 = Party.builder()
+                .partyTitle("잔디개발자와 피자를 먹자!")
+                .partyContent("페페로니 vs 하와이안!")
+                .partyPlaceName("피자 파티 투나잇")
+                .address("서울특별시 용산구 신흥로 89")
+                .longitude(126.9854393172053)
+                .latitude(37.545685580653476)
+                .status(RECRUIT)
+                .deadline(LocalDateTime.now().plusDays(3))
+                .partyTime(LocalDateTime.now().plusDays(3).plusHours(1))
+                .totalParticipant(4)
+                .participantCount(1)
+                .gender(ALL)
+                .age(PartyAge.ALL)
+                .hit(0)
+                .thumbnail("https://matitting.s3.ap-northeast-2.amazonaws.com/western.jpeg")
+                .menu("피자")
+                .category(WESTERN)
+                .user(this.user2)
+                .build();
+        this.party2 = partyRepository.save(party2);
     }
 
-    @AfterEach
-    void clean() {
-        partyId_list.clear();
+    ResponseCreatePartyDto partyCreate(User user) {
+        PartyCreateDto partyCreateDto = PartyCreateDto
+                .builder()
+                .partyTitle("테스트 제목")
+                .partyContent("테스트 내용")
+                .partyPlaceName("가산 인크커피")
+                .partyTime(LocalDateTime.now().plusDays(3))
+                .totalParticipant(4)
+                .longitude(126.88453591058602)
+                .latitude(37.53645109566274)
+                .gender(MALE)
+                .category(WESTERN)
+                .age(PartyAge.ALL)
+                .menu("커피")
+                .thumbnail(null)
+                .build();
+        return partyService.createParty(user, partyCreateDto);
     }
 
-    private String random_word(Random random, int length) {
-        int leftLimit = 48; // numeral '0'
-        int rightLimit = 122; // letter 'z'
-        int targetStringLength = length;
-        return random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(targetStringLength)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
+    ResponseCreatePartyJoinDto partyJoin(Long partyId, User volunteer, PartyJoinStatus status, String oneLineIntroduce) {
+        PartyJoinDto partyJoinDto = new PartyJoinDto(partyId, status, oneLineIntroduce);
+        return partyService.joinParty(partyJoinDto, volunteer);
     }
 
+    @DisplayName("파티 정보 불러오기 성공")
     @Test
-    void 파티_업데이트_성공_모두() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.RECRUIT,
-                6,
-                Gender.FEMALE,
-                PartyAge.ALL,
-                "피자.jpg",
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(5));
-
+    void 파티_조회_성공() {
         //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
+        party1.setPartyTime(LocalDateTime.now().minusHours(5));
+        ReviewCreateReq reviewCreateReq = new ReviewCreateReq(party1.getId(), "멋져요", 50, List.of("단체사진.jpg"));
+        reviewService.createReview(reviewCreateReq, user2);
+
+        ResponsePartyDetailDto partyInfo = partyService.getPartyInfo(user1, party1.getId());
+        ResponsePartyDetailDto partyInfo1 = partyService.getPartyInfo(user1, party2.getId());
 
         //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여안하실래요?");
-        assertThat(party.getPartyContent()).isEqualTo("저는 피자를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("피자");
-        assertThat(party.getLongitude()).isEqualTo(126.909608);
-        assertThat(party.getLatitude()).isEqualTo(37.550357);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(6);
-        assertThat(party.getGender()).isEqualTo(Gender.FEMALE);
-        assertThat(party.getAge()).isEqualTo(PartyAge.ALL);
-        assertThat(party.getThumbnail()).isEqualTo("피자.jpg");
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(2));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(5));
+        assertThat(partyInfo.getPartyId()).isEqualTo(party1.getId());
+        assertThat(partyInfo.getIsLeader()).isTrue();
+        assertThat(partyInfo.getPartyTitle()).isEqualTo("새싹개발자와 돈까스를 먹자!");
+        assertThat(partyInfo.getPartyContent()).isEqualTo("치즈 돈까스 vs 생선 돈까스!");
+        assertThat(partyInfo.getAddress()).isEqualTo("서울특별시 마포구 포은로2나길 44");
+        assertThat(partyInfo.getPartyPlaceName()).isEqualTo("크레이지 카츠");
+        assertThat(partyInfo.getStatus()).isEqualTo(RECRUIT);
+        assertThat(partyInfo.getGender()).isEqualTo(ALL);
+        assertThat(partyInfo.getAge()).isEqualTo(PartyAge.ALL);
+        assertThat(partyInfo.getTotalParticipant()).isEqualTo(4);
+        assertThat(partyInfo.getParticipate()).isEqualTo(1);
+        assertThat(partyInfo.getMenu()).isEqualTo("돈까스");
+        assertThat(partyInfo.getCategory()).isEqualTo(JAPANESE);
+        assertThat(partyInfo.getHit()).isEqualTo(0);
+        assertThat(partyInfo.getReviewInfoRes().size()).isEqualTo(1);
+        assertThat(partyInfo.getReviewInfoRes().get(0).getRating()).isEqualTo(50);
+
+        assertThat(partyInfo1.getIsLeader()).isFalse();
     }
 
+    @DisplayName("파티 정보 불러오기 실패 없는 파티 ID")
     @Test
-    void 파티_업데이트_성공_제목() {
+    void 파티_조회_실패_없는_파티ID() {
+        //when, then
+        assertThrows(PartyException.class, () -> partyService.getPartyInfo(user1, party1.getId()+2L));
+    }
+
+    @DisplayName("파티 수정 성공")
+    @Test
+    void 파티_수정_성공() {
         //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+        PartyUpdateDto partyUpdateDto = new PartyUpdateDto("제목수정", "내용수정", "메뉴수정", null, null, "인계지음 605호", PARTY_FINISH, 2, FEMALE, PartyAge.TWENTY, null, null);
 
         //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
+//        partyService.partyUpdate(user1, partyUpdateDto, party1.getId());
+        ResponsePartyDetailDto partyInfo = partyService.getPartyInfo(user1, party1.getId());
 
         //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여안하실래요?");
-        assertThat(party.getPartyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("치~즈돈까스");
-        assertThat(party.getLongitude()).isEqualTo(126.909708);
-        assertThat(party.getLatitude()).isEqualTo(37.550457);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
+        assertThat(partyInfo.getIsLeader()).isTrue();
+        assertThat(partyInfo.getPartyTitle()).isEqualTo("제목수정");
+        assertThat(partyInfo.getPartyContent()).isEqualTo("내용수정");
+        assertThat(partyInfo.getPartyPlaceName()).isEqualTo("인계지음 605호");
+        assertThat(partyInfo.getStatus()).isEqualTo(PARTY_FINISH);
+        assertThat(partyInfo.getGender()).isEqualTo(FEMALE);
+        assertThat(partyInfo.getAge()).isEqualTo(PartyAge.TWENTY);
+        assertThat(partyInfo.getTotalParticipant()).isEqualTo(2);
+        assertThat(partyInfo.getMenu()).isEqualTo("메뉴수정");
+        assertThat(partyInfo.getCategory()).isEqualTo(JAPANESE);
     }
 
+    @DisplayName("파티 수정 실패 권한 없음")
     @Test
-    void 파티_업데이트_성공_소개글() {
+    void 파티_수정_실패_권한없음() {
         //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                null,
-                "저는 피자를 좋아합니다",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
-
-        //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(party.getPartyContent()).isEqualTo("저는 피자를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("치~즈돈까스");
-        assertThat(party.getLongitude()).isEqualTo(126.909708);
-        assertThat(party.getLatitude()).isEqualTo(37.550457);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
-    }
-
-    @Test
-    void 파티_업데이트_성공_메뉴() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                null,
-                null,
-                "파스타",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
-
-        //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(party.getPartyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("파스타");
-        assertThat(party.getLongitude()).isEqualTo(126.909708);
-        assertThat(party.getLatitude()).isEqualTo(37.550457);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
-    }
-
-    @Test
-    void 파티_업데이트_성공_위경도() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                null,
-                null,
-                null,
-                123.123,
-                234.234,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
-
-        //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(party.getPartyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("치~즈돈까스");
-        assertThat(party.getLongitude()).isEqualTo(123.123);
-        assertThat(party.getLatitude()).isEqualTo(234.234);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
-    }
-
-    @Test
-    void 파티_업데이트_성공_마감시간() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                LocalDateTime.now().plusDays(2),
-                null);
-
-        //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
-
-        //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(party.getPartyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("치~즈돈까스");
-        assertThat(party.getLongitude()).isEqualTo(126.909708);
-        assertThat(party.getLatitude()).isEqualTo(37.550457);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(2));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
-    }
-
-    @Test
-    void 파티_업데이트_성공_파티시간() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                LocalDateTime.now().plusDays(5));
-
-        //when
-        partyService.partyUpdate(partyUpdateDto, partyId);
-        Party party = partyRepository.findById(partyId).get();
-
-        //then
-        assertThat(party.getPartyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(party.getPartyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(party.getMenu()).isEqualTo("치~즈돈까스");
-        assertThat(party.getLongitude()).isEqualTo(126.909708);
-        assertThat(party.getLatitude()).isEqualTo(37.550457);
-        assertThat(party.getStatus()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(party.getTotalParticipant()).isEqualTo(4);
-        assertThat(party.getGender()).isEqualTo(Gender.ALL);
-        assertThat(party.getAge()).isEqualTo(PartyAge.AGE2030);
-        assertThat(party.getThumbnail()).isNull();
-        assertThat(party.getDeadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(party.getPartyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(5));
-    }
-
-    @Test
-    void 파티_업데이트_실패_ID_없음() {
-        //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.RECRUIT,
-                6,
-                Gender.FEMALE,
-                PartyAge.ALL,
-                "피자.jpg",
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(5));
+        PartyUpdateDto partyUpdateDto = new PartyUpdateDto("제목수정", "내용수정", "메뉴수정", null, null, "인계지음 605호", PARTY_FINISH, 2, FEMALE, PartyAge.TWENTY, null, null);
 
         //when, then
-        assertThrows(PartyException.class, () -> partyService.partyUpdate(partyUpdateDto, 1000L));
+//        assertThrows(UserException.class, () -> partyService.partyUpdate(user2, partyUpdateDto, party1.getId()));
     }
 
+    @DisplayName("파티 수정 실패 잘못된 파티ID")
     @Test
-    void 파티_업데이트_실패_상태_잘못됨() {
-        //given, then
-        assertThrows(IllegalArgumentException.class, () -> new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.valueOf("testest"),
-                6,
-                Gender.FEMALE,
-                PartyAge.ALL,
-                "피자.jpg",
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(5)));
-    }
-
-    @Test
-    void 파티_업데이트_실패_성별_잘못됨() {
-        //given, then
-        assertThrows(IllegalArgumentException.class, () -> new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.RECRUIT,
-                6,
-                Gender.valueOf("test"),
-                PartyAge.ALL,
-                "피자.jpg",
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(5)));
-    }
-
-    @Test
-    void 파티_업데이트_실패_연령대_잘못됨() {
-        //given, then
-        assertThrows(IllegalArgumentException.class, () -> new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.RECRUIT,
-                6,
-                Gender.MALE,
-                PartyAge.valueOf("100세"),
-                "피자.jpg",
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(5)));
-    }
-    @Test
-    void 파티_업데이트_실패_마감시간_잘못됨() {
+    void 파티_수정_실패_없는_파티ID() {
         //given
-        PartyUpdateDto partyUpdateDto = new PartyUpdateDto(
-                "맛있팅 참여안하실래요?",
-                "저는 피자를 좋아합니다",
-                "피자",
-                126.909608,
-                37.550357,
-                PartyStatus.RECRUIT,
-                6,
-                Gender.ALL,
-                PartyAge.ALL,
-                "피자.jpg",
-                LocalDateTime.now().plusDays(5),
-                LocalDateTime.now().plusDays(3));
+        PartyUpdateDto partyUpdateDto = new PartyUpdateDto("제목수정", "내용수정", "메뉴수정", null, null, "인계지음 605호", PARTY_FINISH, 2, FEMALE, PartyAge.TWENTY, null, null);
 
         //when, then
-        assertThrows(PartyException.class, () -> partyService.partyUpdate(partyUpdateDto, 1000L));
+//        assertThrows(PartyException.class, () -> partyService.partyUpdate(user1, partyUpdateDto, party1.getId()+100L));
     }
 
+    @DisplayName("파티 삭제 성공")
     @Test
-    void 파티조회_성공() {
+    void 파티_삭제_성공() {
         //when
-        ResponsePartyDto partyInfo = partyService.getPartyInfo(partyId);
+        partyService.deleteParty(user1, party1.getId());
 
         //then
-        assertThat(partyInfo.partyTitle()).isEqualTo("맛있팅 참여하세요");
-        assertThat(partyInfo.partyContent()).isEqualTo("저는 돈까스를 좋아합니다");
-        assertThat(partyInfo.menu()).isEqualTo("치~즈돈까스");
-        assertThat(partyInfo.longitude()).isEqualTo(126.909708);
-        assertThat(partyInfo.latitude()).isEqualTo(37.550457);
-        assertThat(partyInfo.status()).isEqualTo(PartyStatus.RECRUIT);
-        assertThat(partyInfo.totalParticipate()).isEqualTo(4);
-        assertThat(partyInfo.gender()).isEqualTo(Gender.ALL);
-        assertThat(partyInfo.age()).isEqualTo(PartyAge.AGE2030);
-        assertThat(partyInfo.thumbnail()).isNull();
-        assertThat(partyInfo.deadline()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(1));
-        assertThat(partyInfo.partyTime()).isEqualToIgnoringMinutes(LocalDateTime.now().plusDays(3));
+        assertThrows(PartyException.class, () -> partyService.getPartyInfo(user1, party1.getId()));
     }
 
+    @DisplayName("파티 삭제 실패 권한 없음")
     @Test
-    void 파티조회_실패_ID_없음() {
+    void 파티_삭제_실패_권한없음() {
         //when, then
-        assertThrows(PartyException.class, () -> partyService.getPartyInfo(1000L));
+        assertThrows(UserException.class, () -> partyService.deleteParty(user2, party1.getId()));
     }
 
+    @DisplayName("파티 삭제 실패 없는 파티 ID")
     @Test
-    void 파티삭제_성공() {
+    void 파티_삭제_실패_없는_파티ID() {
+        //when, then
+        assertThrows(PartyException.class, () -> partyService.deleteParty(user2, party1.getId()+100L));
+    }
+
+    @DisplayName("파티 신청 성공")
+    @Test
+    void 파티_신청_성공() {
+        //given
+        PartyJoinDto partyJoinDto = new PartyJoinDto(party2.getId(), PartyJoinStatus.APPLY, "안녕하세요");
+
         //when
-        partyService.deleteParty(user, partyId);
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto = partyService.joinParty(partyJoinDto, user1);
 
         //then
-        Optional<Party> party = partyRepository.findById(partyId);
-        assertThat(party.isEmpty()).isTrue();
+        assertThat(responseCreatePartyJoinDto.getPartyJoinId()).isNotNull();
     }
 
+    @DisplayName("파티 신청 실패 본인 파티에 신청")
     @Test
-    void 파티삭제_실패_ID_없음() {
-        //when, then
-        assertThrows(PartyException.class, () -> partyService.deleteParty(user, 1000L));
-    }
-
-    //TODO: 실패
-    @Test
-    void 파티신청_성공() {
+    void 파티_신청_실패_본인파티에신청() {
         //given
-        Optional<Party> findParty_01 = partyRepository.findById(partyId_list.get(0));
-        User user_01 = findParty_01.get().getUser();
-        Optional<Party> findParty_02 = partyRepository.findById(partyId_list.get(1));
-        User user_02 = findParty_02.get().getUser();
-        Optional<Party> findParty_03 = partyRepository.findById(partyId_list.get(2));
-        User user_03 = findParty_03.get().getUser();
-        Optional<Party> findParty_04 = partyRepository.findById(partyId_list.get(3));
-        User user_04 = findParty_04.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
+        PartyJoinDto partyJoinDto = new PartyJoinDto(party1.getId(), PartyJoinStatus.APPLY, "안녕하세요");
+
+        //when, then
+        assertThrows(UserException.class, () -> partyService.joinParty(partyJoinDto, user1));
+    }
+
+    @DisplayName("파티 신청 실패 중복 신청")
+    @Test
+    void 파티_신청_실패_중복신청() {
+        //given
+        PartyJoinDto partyJoinDto = new PartyJoinDto(party2.getId(), PartyJoinStatus.APPLY, "안녕하세요");
 
         //when
-        PartyJoinDto partyJoinDto_01 = new PartyJoinDto(findParty_01.get().getId(), user_01.getId(), PartyJoinStatus.WAIT);
-        PartyJoinDto partyJoinDto_02 = new PartyJoinDto(findParty_02.get().getId(), user_02.getId(), PartyJoinStatus.WAIT);
-        PartyJoinDto partyJoinDto_03 = new PartyJoinDto(findParty_03.get().getId(), user_03.getId(), PartyJoinStatus.WAIT);
-        PartyJoinDto partyJoinDto_04 = new PartyJoinDto(findParty_01.get().getId(), user_04.getId(), PartyJoinStatus.WAIT);
-        partyService.joinParty(partyJoinDto_01, guest.get());
-        partyService.joinParty(partyJoinDto_02, guest.get());
-        partyService.joinParty(partyJoinDto_03, guest.get());
-        partyService.joinParty(partyJoinDto_04, guest.get());
-
-        List<PartyJoin> partyJoinList_01 = partyJoinRepository.findByLeaderId(user_01.getId());
-        List<PartyJoin> partyJoinList_02 = partyJoinRepository.findByPartyIdAndLeaderId(findParty_02.get().getId(), user_02.getId());
-        List<PartyJoin> partyJoinList_03 = partyJoinRepository.findByPartyIdAndLeaderId(findParty_03.get().getId(), user_03.getId());
+        partyService.joinParty(partyJoinDto, user1);
 
         //then
-        assertThat(partyJoinList_01.size()).isEqualTo(2);
-        assertThat(partyJoinList_02.size()).isEqualTo(1);
-        assertThat(partyJoinList_03.size()).isEqualTo(1);
-
-        assertThat(partyJoinList_01.get(0).getLeaderId()).isEqualTo(user_01.getId());
-        assertThat(partyJoinList_01.get(1).getLeaderId()).isEqualTo(user_01.getId());
-        assertThat(partyJoinList_02.get(0).getLeaderId()).isEqualTo(user_02.getId());
-        assertThat(partyJoinList_03.get(0).getLeaderId()).isEqualTo(user_03.getId());
+        assertThrows(PartyJoinException.class, () -> partyService.joinParty(partyJoinDto, user1));
     }
 
+    @DisplayName("파티 신청 취소 성공")
     @Test
-    void 파티신청_실패_파티Id가_없을때(){
+    void 파티_신청취소_성공() {
         //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-        PartyJoinDto partyJoinDto = new PartyJoinDto(null, user.getId(), PartyJoinStatus.WAIT);
-
-        //when, then
-        assertThrows(InvalidDataAccessApiUsageException.class, () -> { //Null 값으로 DB에서 Select를 시도해서 발생
-            partyService.joinParty(partyJoinDto, guest.get());
-        });
-    }
-
-    //TODO: 실패
-    @Test
-    void 파티신청_실패_방장Id가_없을때() {
-        //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), null, PartyJoinStatus.WAIT);
-
-        //when, then
-        assertThrows(UserException.class, () -> { //Null 값으로 DB에 Insert를 시도해서 발생
-            partyService.joinParty(partyJoinDto, guest.get());
-        });
-    }
-
-    @Test
-    void 파티신청_실패_사용자Id가_없을때(){
-        //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), null, PartyJoinStatus.WAIT);
-
-        //when, then
-        assertThrows(DataIntegrityViolationException.class, () -> {//Null 값으로 DB에 Insert를 시도해서 발생
-            partyService.joinParty(partyJoinDto, guest.get());
-        });
-    }
-
-    @Test
-    void 파티요청_수락_성공() {
-        //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.getId(), PartyJoinStatus.ACCEPT);
-        partyService.joinParty(partyJoinDto, guest.get());
+        PartyJoinDto partyJoinDto = new PartyJoinDto(party2.getId(), PartyJoinStatus.APPLY, "안녕하세요");
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto = partyService.joinParty(partyJoinDto, user1);
 
         //when
-        String result = partyService.decideUser(partyJoinDto, user);
-        List<Team> findTeams = teamRepository.findByPartyId(findParty.get().getId());
+        PartyJoinDto partyJoinDto1 = new PartyJoinDto(party2.getId(), PartyJoinStatus.CANCEL, null);
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto1 = partyService.joinParty(partyJoinDto1, user1);
+
+        //then
+        assertThat(responseCreatePartyJoinDto1.getPartyJoinId()).isNotNull();
+    }
+
+    @DisplayName("파티 신청 취소 실패 신청한 적 없음")
+    @Test
+    void 파티_신청취소_실패_신청한적_없음() {
+        //given
+        PartyJoinDto partyJoinDto1 = new PartyJoinDto(party2.getId(), PartyJoinStatus.CANCEL, null);
+
+        //when, then
+        assertThrows(PartyJoinException.class, () -> partyService.joinParty(partyJoinDto1, user1));
+    }
+
+    @DisplayName("파티 신청 실패 신청 Type이 잘못됌")
+    @Test
+    void 파티_신청취소_실패_TypeMiss() {
+        //when, then
+        assertThrows(IllegalArgumentException.class, () -> new PartyJoinDto(party2.getId(), PartyJoinStatus.valueOf("MISS"), "안녕하세요"));
+    }
+
+    @DisplayName("파티 승락 성공")
+    @Test
+    void 파티_승락_성공() {
+        //given
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        PartyDecisionDto partyDecisionDto = new PartyDecisionDto(responseCreatePartyDto.getPartyId(), "잔디 개발자", PartyDecision.ACCEPT);
+
+        //when
+        String result = partyService.decideUser(partyDecisionDto, user1);
 
         //then
         assertThat(result).isEqualTo("Accept Request Completed");
-        assertThat(findTeams.size()).isEqualTo(1);
     }
 
+    @DisplayName("파티 승락 실패 신청 조회 실패")
     @Test
-    void 파티요청_수락_실패_상태대기() {
+    void 파티_승락_실패_신청조회_실패() {
         //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        PartyDecisionDto partyDecisionDto = new PartyDecisionDto(responseCreatePartyDto.getPartyId() + 2L, "잔디 개발자", PartyDecision.ACCEPT);
 
-        //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.getId(), PartyJoinStatus.WAIT);
-        partyService.joinParty(partyJoinDto, guest.get());
-
-        //then
-        assertThrows(PartyJoinException.class, () -> partyService.decideUser(partyJoinDto, user));
+        //when, then
+        assertThrows(PartyJoinException.class, () -> partyService.decideUser(partyDecisionDto, user1));
     }
 
+    @DisplayName("파티 거절 성공")
     @Test
-    void 파티요청_수락_실패_파티없음() {
+    void 파티_거절_성공() {
         //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        PartyDecisionDto partyDecisionDto = new PartyDecisionDto(responseCreatePartyDto.getPartyId(), "잔디 개발자", PartyDecision.REFUSE);
 
         //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.getId(), PartyJoinStatus.ACCEPT);
-        partyService.joinParty(partyJoinDto, guest.get());
-        partyRepository.delete(findParty.get());
-
-        //then
-        assertThrows(PartyException.class, () -> partyService.decideUser(partyJoinDto, user));
-    }
-
-    @Test
-    void 파티요청_수락_실패_유저없음() {
-        //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-
-
-        //when
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.getId(), PartyJoinStatus.ACCEPT);
-        partyService.joinParty(partyJoinDto, guest.get());
-        userRepository.delete(user);
-        userRepository.delete(guest.get());
-
-        //then
-        assertThrows(UserException.class, () -> partyService.decideUser(partyJoinDto, user));
-    }
-
-    @Test
-    void 파티요청_거절_성공() {
-        //given
-        Optional<Party> findParty = partyRepository.findById(partyId_list.get(0));
-        User user = findParty.get().getUser();
-        Optional<User> guest = userRepository.findBySocialId(guestSocialId);
-
-        PartyJoinDto partyJoinDto = new PartyJoinDto(findParty.get().getId(), user.getId(), PartyJoinStatus.REFUSE);
-        partyService.joinParty(partyJoinDto, guest.get());
-
-        //when
-        String result = partyService.decideUser(partyJoinDto, user);
-        List<Team> findTeams = teamRepository.findByPartyId(findParty.get().getId());
+        String result = partyService.decideUser(partyDecisionDto, user1);
 
         //then
         assertThat(result).isEqualTo("Refuse Request Completed");
-        assertThat(findTeams.size()).isEqualTo(0);
     }
 
+    @DisplayName("파티 신청 현황 조회 성공 - HOST")
     @Test
-    public void 파티_글_생성_성공() {
+    void 파티_신청현황_HOST_조회_성공() {
         //given
-        PartyCreateDto partyCreateDto = createPartyCreateDto();
-
-        assertThat(userRepository.findById(partyCreateDto.getUserId())).isPresent();
-        assertThat(partyCreateDto.getTotalParticipant()).isGreaterThanOrEqualTo(2);
-        assertThat(partyCreateDto.getDeadline()).isBefore(partyCreateDto.getPartyTime());
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        ResponseCreatePartyDto responseCreatePartyDto2 = partyCreate(user2);
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto = partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "봉쥬르");
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto1 = partyJoin(responseCreatePartyDto2.getPartyId(), user1, PartyJoinStatus.APPLY, "곤니찌와");
 
         //when
-        Map<String, Long> partyId = partyService.createParty(partyCreateDto);
+        ResponseGetPartyJoinDto joinList = partyService.getJoinList(user1, Role.HOST, 1, 0L);
 
-        assertThat(partyId.get("partyId").longValue()).isEqualTo(2L);
+        //then
+        assertThat(joinList.getPartyList().size()).isEqualTo(1);
+        assertThat(joinList.getPartyList().get(0).getNickname()).isEqualTo("잔디 개발자");
+        assertThat(joinList.getPartyList().get(0).getPartyGender()).isEqualTo(MALE);
+        assertThat(joinList.getPartyList().get(0).getOneLineIntroduce()).isEqualTo("봉쥬르");
+        assertThat(joinList.getPartyList().get(0).getTypeMatch()).isTrue();
+        assertThat(joinList.getPageInfo().isHasNext()).isFalse();
+        assertThat(joinList.getPageInfo().getLastId()).isEqualTo(responseCreatePartyJoinDto.getPartyJoinId());
     }
 
+    @DisplayName("파티 신청 현황 조회 성공 - VOLUNTEER")
     @Test
-    public void 파티_글_생성_실패_유저없을때() {
+    void 파티_신청현황_VOLUNTEER_조회_성공() {
         //given
-        PartyCreateDto partyCreateDto = createPartyCreateDto();
-        partyCreateDto.setUserId(1234567L);
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        ResponseCreatePartyDto responseCreatePartyDto2 = partyCreate(user2);
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto = partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        ResponseCreatePartyJoinDto responseCreatePartyJoinDto1 = partyJoin(responseCreatePartyDto2.getPartyId(), user1, PartyJoinStatus.APPLY, "안녕하세요");
+
         //when
-        assertThat(userRepository.findById(partyCreateDto.getUserId())).isEqualTo(Optional.empty());
-        //Then
-        assertThrows(UserException.class, () -> partyService.createParty(partyCreateDto));
+        ResponseGetPartyJoinDto joinList = partyService.getJoinList(user1, Role.VOLUNTEER, 1, 0L);
+
+        //then
+        assertThat(joinList.getPartyList().size()).isEqualTo(1);
+        assertThat(joinList.getPartyList().get(0).getNickname()).isNull();
+        assertThat(joinList.getPartyList().get(0).getPartyGender()).isEqualTo(MALE);
+        assertThat(joinList.getPageInfo().isHasNext()).isFalse();
+        assertThat(joinList.getPageInfo().getLastId()).isEqualTo(responseCreatePartyJoinDto1.getPartyJoinId());
     }
 
+    @DisplayName("파티 신청 현황 조회 실패 잘못된 Role")
     @Test
-    public void 파티_글_생성_실패_파티모집인원이_2미만일때() {
+    void 파티_신청현황_조회_실패_잘못된_Role() {
         //given
-        PartyCreateDto partyCreateDto = createPartyCreateDto();
-        partyCreateDto.setTotalParticipant(1);
-        //when
-        assertThat(partyCreateDto.getTotalParticipant()).isLessThan(2);
-        //Then
-        assertThrows(PartyException.class, () -> partyService.createParty(partyCreateDto));
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        ResponseCreatePartyDto responseCreatePartyDto2 = partyCreate(user2);
+        partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        partyJoin(responseCreatePartyDto2.getPartyId(), user1, PartyJoinStatus.APPLY, "안녕하세요");
+
+        //when, then
+        assertThrows(IllegalArgumentException.class, () -> partyService.getJoinList(user1, Role.valueOf("check"), 1, 0L));
     }
 
+    @DisplayName("파티 신청 현황 조회 실패 없는 사용자")
     @Test
-    public void 파티_글_생성_실패_마감시간이_파티시간보다_늦을때() {
+    void 파티_신청현황_조회_실패_없는_사용자() {
         //given
-        PartyCreateDto partyCreateDto = createPartyCreateDto();
-        partyCreateDto.setDeadline(LocalDateTime.now().plusHours(12));
-        //when
-        assertThat(partyCreateDto.getDeadline()).isAfter(partyCreateDto.getPartyTime());
-        //Then
-        assertThrows(PartyException.class, () -> partyService.createParty(partyCreateDto));
-    }
+        ResponseCreatePartyDto responseCreatePartyDto = partyCreate(user1);
+        ResponseCreatePartyDto responseCreatePartyDto2 = partyCreate(user2);
+        partyJoin(responseCreatePartyDto.getPartyId(), user2, PartyJoinStatus.APPLY, "안녕하세요");
+        partyJoin(responseCreatePartyDto2.getPartyId(), user1, PartyJoinStatus.APPLY, "안녕하세요");
 
-    private PartyCreateDto createPartyCreateDto() {
-        PartyCreateDto request = new PartyCreateDto();
-        request.setTitle("테스트 파티 생성 DTO");
-        request.setContent("파티 생성 테스트");
-        request.setLatitude(37.566828706631135);
-        request.setLongitude(126.978646598009);
-        request.setPartyTime(LocalDateTime.now());
-        request.setDeadline(LocalDateTime.now().minusHours(1));
-        request.setTotalParticipant(5);
-        request.setGender(Gender.ALL);
-        request.setAge(PartyAge.AGE2030);
-        request.setMenu("TEST");
-        request.setCategory(PartyCategory.WESTERN);
-        return request;
+        userRepository.deleteById(user1.getId());
+        userRepository.deleteById(user2.getId());
+
+        //when, then
+        assertThrows(UserException.class, () -> partyService.getJoinList(user1, Role.HOST, 1, 0L));
+        assertThrows(UserException.class, () -> partyService.getJoinList(user1, Role.VOLUNTEER, 1, 0L));
     }
 }

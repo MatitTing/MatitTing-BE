@@ -34,7 +34,7 @@ public class User extends BaseTimeEntity{
     private OauthProvider oauthProvider; // KAKAO, NAVER, GOOGLE
 
     @Schema(description = "사용자 email", nullable = false, example = "parksn5029@naver.com")
-    @Column(nullable = false, length = 30, unique = true)
+    @Column(nullable = false, length = 30)
     private String email;   //이메일
 
     @Schema(description = "사용자 닉네임", nullable = false, example = "안경잡이 개발자")
@@ -59,7 +59,25 @@ public class User extends BaseTimeEntity{
     @Column(nullable = false)
     private Role role; //신규유저 or 기존유저
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Party> partyList = new ArrayList<>();
 
+    @OneToMany(mappedBy = "reviewer", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<Review> sendReviews = new ArrayList<>();
+
+    @OneToMany(mappedBy = "receiver", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<Review> receivedReviews = new ArrayList<>();
+
+    public User(String socialId, OauthProvider oauthProvider, String email, String nickname, Integer age, String imgUrl, Gender gender, Role role) {
+        this.socialId = socialId;
+        this.oauthProvider = oauthProvider;
+        this.email = email;
+        this.nickname = nickname;
+        this.age = age;
+        this.imgUrl = imgUrl;
+        this.gender = gender;
+        this.role = role;
+        this.sendReviews = new ArrayList<>();
+        this.receivedReviews = new ArrayList<>();
+    }
 }

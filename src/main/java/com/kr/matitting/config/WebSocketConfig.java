@@ -15,19 +15,20 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompHandler stompHandler;
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/sub");
-        config.setApplicationDestinationPrefixes("/pub");
-    }
-
-    @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws-stomp").setAllowedOriginPatterns("*")
-                .withSockJS();
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*");
     }
 
     @Override
-    public void configureClientInboundChannel(ChannelRegistration registration) {
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/sub"); // 메세지를 구독하는 요청 설정
+        registry.setApplicationDestinationPrefixes("/pub"); // 메세지를 발행하는 요청 설정
+
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration){
         registration.interceptors(stompHandler);
     }
 }

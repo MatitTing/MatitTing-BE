@@ -5,6 +5,7 @@ import com.kr.matitting.constant.PartyAge;
 import com.kr.matitting.constant.PartyCategory;
 import com.kr.matitting.entity.Party;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -35,6 +36,7 @@ public class PartyCreateDto {
     private LocalDateTime partyTime;
     @Schema(description = "모집 인원", nullable = false, example = "4")
     @NotNull
+    @Min(2)
     private int totalParticipant;
     @Schema(description = "경도", nullable = false, example = "126.88453591058602")
     @NotNull
@@ -45,10 +47,10 @@ public class PartyCreateDto {
     @Schema(description = "성별", nullable = false, example = "ALL")
     @NotNull
     private Gender gender;
-    @Schema(description = "카테고리", nullable = false, example = "한식")
+    @Schema(description = "카테고리", nullable = false, example = "KOREAN")
     @NotNull
     private PartyCategory category;
-    @Schema(description = "연령대", nullable = false, example = "2030")
+    @Schema(description = "연령대", nullable = false, example = "TWENTY")
     @NotNull
     private PartyAge age;
     @Schema(description = "메뉴", nullable = false, example = "붕어빵")

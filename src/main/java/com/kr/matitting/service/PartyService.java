@@ -2,10 +2,7 @@ package com.kr.matitting.service;
 
 import com.kr.matitting.constant.*;
 import com.kr.matitting.dto.*;
-import com.kr.matitting.entity.Party;
-import com.kr.matitting.entity.PartyJoin;
-import com.kr.matitting.entity.Team;
-import com.kr.matitting.entity.User;
+import com.kr.matitting.entity.*;
 import com.kr.matitting.exception.Map.MapException;
 import com.kr.matitting.exception.Map.MapExceptionType;
 import com.kr.matitting.exception.party.PartyException;
@@ -14,22 +11,23 @@ import com.kr.matitting.exception.partyjoin.PartyJoinException;
 import com.kr.matitting.exception.partyjoin.PartyJoinExceptionType;
 import com.kr.matitting.exception.user.UserException;
 import com.kr.matitting.exception.user.UserExceptionType;
-import com.kr.matitting.repository.PartyJoinRepository;
-import com.kr.matitting.repository.PartyRepository;
-import com.kr.matitting.repository.PartyTeamRepository;
-import com.kr.matitting.repository.UserRepository;
+import com.kr.matitting.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.awt.geom.Point2D;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
-import static com.kr.matitting.dto.ChatRoomDto.*;
+import static com.kr.matitting.constant.PartyJoinStatus.*;
 
 @Slf4j
 @Service
@@ -38,83 +36,46 @@ import static com.kr.matitting.dto.ChatRoomDto.*;
 public class PartyService {
     @Value("${cloud.aws.s3.url}")
     private String url;
-    private final ApplicationEventPublisher eventPublisher;
     private final PartyJoinRepository partyJoinRepository;
     private final PartyTeamRepository teamRepository;
     private final PartyRepository partyRepository;
     private final UserRepository userRepository;
     private final MapService mapService;
+    private final NotificationService notificationService;
+    private final ChatService chatService;
+    private final PartyJoinRepositoryCustom partyJoinRepositoryCustom;
 
     public ResponsePartyDetailDto getPartyInfo(User user, Long partyId) {
         Party party = partyRepository.findById(partyId).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
         increaseHit(partyId);
-        return ResponsePartyDetailDto.builder()
-                .userId(party.getUser().getId())
-                .isLeader((user != null) && (user.getId() == party.getUser().getId()) ? true : false)
-                .partyId(party.getId())
-                .partyTitle(party.getPartyTitle())
-                .partyContent(party.getPartyContent())
-                .address(party.getAddress())
-                .longitude(party.getLongitude())
-                .latitude(party.getLatitude())
-                .partyPlaceName(party.getPartyPlaceName())
-                .status(party.getStatus())
-                .gender(party.getGender())
-                .age(party.getAge())
-                .deadline(party.getDeadline())
-                .partyTime(party.getPartyTime())
-                .totalParticipant(party.getTotalParticipant())
-                .participate(party.getParticipantCount())
-                .menu(party.getMenu())
-                .category(party.getCategory())
-                .thumbnail(party.getThumbnail())
-                .hit(party.getHit())
-                .build();
+
+        return ResponsePartyDetailDto.from(party, user);
     }
 
-    @Transactional
-    public void increaseHit(Long partyId){
+    public void increaseHit(Long partyId) {
         partyRepository.increaseHit(partyId);
     }
 
-    public Map<String, Long> createParty(User user, PartyCreateDto request) {
+    public ResponseCreatePartyDto createParty(User user, PartyCreateDto request) {
         log.info("=== createParty() start ===");
 
-        Long userId = user.getId();
-        User findUser = userRepository.findById(userId).orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
-
-        checkParticipant(request.getTotalParticipant());
-
         // address 변환, deadline, thumbnail이 null일 경우 처리하는 로직 처리 후 생성
-        Party party = createBasePartyBuilder(request, findUser);
+        Party party = createBasePartyBuilder(request, user);
         Party savedParty = partyRepository.save(party);
 
-        Team team = Team.builder()
-                .user(findUser)
-                .party(savedParty)
-                .role(Role.HOST)
-                .build();
-
+        Team team = new Team(user, savedParty, Role.HOST);
         teamRepository.save(team);
 
-        Map<String, Long> partyId = new HashMap<>();
-        partyId.put("partyId", savedParty.getId());
+        // 채팅방 생성
+        ChatRoom createdChatRoom = chatService.createChatRoom(party, user);
 
-        eventPublisher.publishEvent(new CreateRoomEvent(savedParty.getId(), user.getId()));
-
-        return partyId;
+        return new ResponseCreatePartyDto(savedParty, createdChatRoom);
     }
 
     private Point2D.Double setLocationFunc(double latitude, double longitude) {
         Point2D.Double now = new Point2D.Double();
         now.setLocation(latitude, longitude);
         return now;
-    }
-
-    private void checkParticipant(int totalParticipant) {
-        if (totalParticipant < 2) {
-            throw new PartyException(PartyExceptionType.NOT_MINIMUM_PARTICIPANT);
-        }
     }
 
     private String getThumbnail(PartyCategory category, String thumbnail) {
@@ -146,8 +107,9 @@ public class PartyService {
         return address;
     }
 
-    public void partyUpdate(PartyUpdateDto partyUpdateDto, Long partyId) {
+    public void partyUpdate(User user, PartyUpdateDto partyUpdateDto, Long partyId) {
         Party party = partyRepository.findById(partyId).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
+        checkRole(user, party);
         if (partyUpdateDto.partyTitle() != null) {
             party.setPartyTitle(partyUpdateDto.partyTitle());
         }
@@ -167,6 +129,13 @@ public class PartyService {
             party.setPartyPlaceName(partyUpdateDto.partyPlaceName());
         }
         if (partyUpdateDto.status() != null) {
+            if (partyUpdateDto.status().equals(PartyStatus.RECRUIT_FINISH)){
+                party.getTeamList()
+                        .stream()
+                        .map(Team::getUser)
+                        .filter(teamUser -> teamUser.getId() != user.getId())
+                        .forEach(teamUser -> notificationService.send(teamUser, party, NotificationType.RECRUIT_FINISH, "파티 모집 완료", party.getPartyTitle() + " 파티 모집이 완료되었습니다."));
+            }
             party.setStatus(partyUpdateDto.status());
         }
         if (partyUpdateDto.thumbnail() != null) {
@@ -191,22 +160,17 @@ public class PartyService {
         }
     }
 
-    private boolean timeValidCheck(LocalDateTime deadlineTime, LocalDateTime partyTime) {
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(deadlineTime) && deadlineTime.isBefore(partyTime)) {
-            return true;
-        } else {
-            throw new PartyException(PartyExceptionType.INVALID_UPDATE_VALUE);
-        }
-    }
-
     public void deleteParty(User user, Long partyId) {
         Party party = partyRepository.findById(partyId).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
 
-        if (!user.getId().equals(party.getUser().getId())) {
-            throw new UserException(UserExceptionType.NOT_MATCH_USER);
-        }
+        checkRole(user, party);
         partyRepository.delete(party);
+    }
+
+    private void checkRole(User user, Party party) {
+        if (!user.getId().equals(party.getUser().getId())) {
+            throw new UserException(UserExceptionType.INVALID_ROLE_USER);
+        }
     }
 
     // address, deadline, thumbnail와 같이 변환이나 null인 경우 처리가 필요한 필드는 제외하고 나머지 필드는 빌더패턴으로 생성
@@ -219,6 +183,7 @@ public class PartyService {
                 .longitude(setLocationFunc(request.getLatitude(), request.getLongitude()).y)
                 .partyTime(request.getPartyTime())
                 .totalParticipant(request.getTotalParticipant())
+                .participantCount(1)
                 .gender(request.getGender())
                 .age(request.getAge())
                 .menu(request.getMenu())
@@ -231,86 +196,95 @@ public class PartyService {
                 .build();
     }
 
-    public Long joinParty(PartyJoinDto partyJoinDto, User user) {
+    public ResponseCreatePartyJoinDto joinParty(PartyJoinDto partyJoinDto, User user) {
         log.info("=== joinParty() start ===");
 
-        Party party = partyRepository.findById(partyJoinDto.partyId()).orElseThrow(() -> new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN));
-        PartyJoin partyJoin = PartyJoin.builder().party(party).leaderId(party.getUser().getId()).userId(user.getId()).build();
-        Optional<PartyJoin> byPartyIdAndLeaderIdAndUserId = partyJoinRepository.findByPartyIdAndLeaderIdAndUserId(partyJoin.getParty().getId(), partyJoin.getLeaderId(), partyJoin.getUserId());
+        Party party = partyRepository.findById(partyJoinDto.partyId()).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
+        if (party.getUser().getId().equals(user.getId())) throw new UserException(UserExceptionType.INVALID_ROLE_USER);
 
-        if (!party.getUser().getId().equals(party.getUser().getId())) {
-            throw new UserException(UserExceptionType.NOT_FOUND_USER);
-        }
+        Optional<PartyJoin> existingJoin = partyJoinRepository.findByPartyIdAndLeaderIdAndUserId(party.getId(), party.getUser().getId(), user.getId());
 
-        if (partyJoinDto.status() == PartyJoinStatus.APPLY) {
-            if (!byPartyIdAndLeaderIdAndUserId.isEmpty()) {
-                throw new PartyJoinException(PartyJoinExceptionType.DUPLICATION_PARTY_JOIN);
-            }
-            PartyJoin savedpartyJoin = partyJoinRepository.save(partyJoin);
-            return savedpartyJoin.getId();
-        } else if (partyJoinDto.status() == PartyJoinStatus.CANCEL) {
-            if (byPartyIdAndLeaderIdAndUserId.isEmpty()) {
-                throw new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN);
-            }
-            partyJoinRepository.delete(byPartyIdAndLeaderIdAndUserId.get());
-            return byPartyIdAndLeaderIdAndUserId.get().getId();
-        } else {
-            throw new PartyJoinException(PartyJoinExceptionType.WRONG_STATUS);
+        switch (partyJoinDto.status()) {
+            case APPLY:
+                if (existingJoin.isPresent())
+                    throw new PartyJoinException(PartyJoinExceptionType.DUPLICATION_PARTY_JOIN);
+
+                PartyJoin savedpartyJoin = partyJoinRepository.save(new PartyJoin(party, party.getUser().getId(), user.getId(), partyJoinDto.oneLineIntroduce()));
+                notificationService.send(party.getUser(), party, NotificationType.PARTICIPATION_REQUEST, "파티 신청", party.getPartyTitle() + " 파티에 참가 신청이 도착했어요.");
+
+                return new ResponseCreatePartyJoinDto(savedpartyJoin.getId());
+
+            case CANCEL:
+                if (existingJoin.isEmpty())
+                    throw new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN);
+
+                partyJoinRepository.delete(existingJoin.get());
+                return new ResponseCreatePartyJoinDto(existingJoin.get().getId());
+
+            default:
+                return null;
         }
     }
 
     public String decideUser(PartyDecisionDto partyDecisionDto, User user) {
         log.info("=== decideUser() start ===");
 
-        if (!(partyDecisionDto.getStatus() == PartyDecision.ACCEPT || partyDecisionDto.getStatus() == PartyDecision.REFUSE)) {
-            log.error("=== Party Join Status was requested incorrectly ===");
-            throw new PartyJoinException(PartyJoinExceptionType.WRONG_STATUS);
-        }
         User volunteerUser = userRepository.findByNickname(partyDecisionDto.getNickname()).orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
         PartyJoin findPartyJoin = partyJoinRepository.findByPartyIdAndUserId(
                 partyDecisionDto.getPartyId(),
                 volunteerUser.getId()).orElseThrow(() -> new PartyJoinException(PartyJoinExceptionType.NOT_FOUND_PARTY_JOIN));
+
+        if (!findPartyJoin.getLeaderId().equals(user.getId()))
+            throw new UserException(UserExceptionType.INVALID_ROLE_USER);
+
         partyJoinRepository.delete(findPartyJoin);
 
+        Party party = partyRepository.findById(partyDecisionDto.getPartyId()).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
         if (partyDecisionDto.getStatus() == PartyDecision.ACCEPT) {
             log.info("=== ACCEPT ===");
 
-            Party party = partyRepository.findById(partyDecisionDto.getPartyId()).orElseThrow(() -> new PartyException(PartyExceptionType.NOT_FOUND_PARTY));
             party.increaseUser();
-            if (party.getTotalParticipant() == party.getParticipantCount()) {
-                party.setStatus(PartyStatus.RECRUIT_FINISH);
-            }
-            Team member = Team.builder().user(volunteerUser).party(party).role(Role.VOLUNTEER).build();
+            Team member = new Team(volunteerUser, party, Role.VOLUNTEER);
             teamRepository.save(member);
 
-            eventPublisher.publishEvent(new JoinRoomEvent(party.getId(), volunteerUser.getId()));
+            //참가 수락된 유저를 채팅방에 추가
+            chatService.addParticipant(party, volunteerUser);
 
+            notificationService.send(volunteerUser, party, NotificationType.REQUEST_DECISION, "참가신청 여부", party.getPartyTitle() + "파티에 참가 되셨습니다.");
             return "Accept Request Completed";
         } else {
             log.info("=== REFUSE ===");
+            notificationService.send(volunteerUser, party, NotificationType.REQUEST_DECISION, "참가신청 여부", party.getPartyTitle() + "파티에 참가가 거절되었습니다.");
             return "Refuse Request Completed";
         }
     }
 
-    public List<InvitationRequestDto> getJoinList(User user, Role role) {
-        List<PartyJoin> partyJoinList;
-        List<InvitationRequestDto> invitationRequestDtos;
-        if (role.equals(Role.HOST)) {
-            partyJoinList = partyJoinRepository.findAllByLeaderId(user.getId());
-            invitationRequestDtos = partyJoinList.stream().map(partyJoin -> {
-                User volunteerUser = userRepository.findById(partyJoin.getUserId()).orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
-                return InvitationRequestDto.toDto(partyJoin, volunteerUser, role);
-            }).toList();
-        } else if (role.equals(Role.VOLUNTEER)) {
-            partyJoinList = partyJoinRepository.findAllByUserId(user.getId());
-            invitationRequestDtos = partyJoinList.stream().map(partyJoin -> {
-                User leaderUser = userRepository.findById(partyJoin.getLeaderId()).orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
-                return InvitationRequestDto.toDto(partyJoin, leaderUser, role);
-            }).toList();
-        } else {
-            throw new UserException(UserExceptionType.INVALID_ROLE_USER);
-        }
+    public ResponseGetPartyJoinDto getJoinList(User user, Role role, Pageable pageable) {
+        Page<PartyJoin> partyJoinPage = partyJoinRepositoryCustom.getPartyJoin(pageable, user, role);
 
-        return invitationRequestDtos;
+        switch (role) {
+            case HOST:
+                List<InvitationRequestDto> hostInvitation = partyJoinPage.getContent().stream()
+                        .map(partyJoin -> {
+                            User volunteerUser = userRepository.findById(partyJoin.getUserId())
+                                    .orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
+                            return InvitationRequestDto.toDto(partyJoin, volunteerUser, role);
+                        })
+                        .toList();
+                ResponsePageInfoDto hostPageInfoDto = new ResponsePageInfoDto(partyJoinPage.getPageable().getPageNumber(), partyJoinPage.hasNext());
+                return new ResponseGetPartyJoinDto(hostInvitation, hostPageInfoDto);
+            case VOLUNTEER:
+                List<InvitationRequestDto> volunteerInvitation = partyJoinPage.getContent().stream()
+                        .map(partyJoin -> {
+                            User leaderUser = userRepository.findById(partyJoin.getLeaderId())
+                                    .orElseThrow(() -> new UserException(UserExceptionType.NOT_FOUND_USER));
+                            return InvitationRequestDto.toDto(partyJoin, leaderUser, role);
+                        })
+                        .toList();
+                ResponsePageInfoDto volunteerPageInfoDto = new ResponsePageInfoDto(partyJoinPage.getPageable().getPageNumber(), partyJoinPage.hasNext());
+                return new ResponseGetPartyJoinDto(volunteerInvitation, volunteerPageInfoDto);
+            default:
+                throw new UserException(UserExceptionType.INVALID_ROLE_USER);
+        }
     }
 }

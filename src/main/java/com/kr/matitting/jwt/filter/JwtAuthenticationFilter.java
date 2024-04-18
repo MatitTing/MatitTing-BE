@@ -44,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String[] whitelist = {"/", "/index.html", "/home", "/matitting**", "/login", "/oauth2/**", "/api/main**", "/api/search**", "/api/search/rank",
             "/login/oauth2/code/**", "/oauth2/signUp", "/error", "/js/**", "/demo-ui.html", "/swagger-ui/**", "/api-docs/**",
-            "/chat/**", "/room/**", "/webjars/**", "/favicon.ico", "/ws-stomp/**"};
+            "/chat/**", "/room/**", "/webjars/**", "/favicon.ico","/ws","/ws/**"};
 
 
     // 필터를 거치지 않을 URL 을 설정하고, true 를 return 하면 바로 다음 필터를 진행하게 됨
@@ -66,16 +66,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws IOException {
-        String header = request.getHeader(jwtService.getAccessHeader());
-        // 토큰이 없거나 정상적이지 않은 경우
-        if (header == null || !header.startsWith("Bearer ")) {
-            log.error(NOT_FOUND_ACCESS_TOKEN.getErrorMessage());
-            throw new TokenException(NOT_FOUND_ACCESS_TOKEN);
-        }
+        String token = jwtService.extractToken(request);
 
         try {
-            // 토큰 검증
-            String token = header.replace("Bearer ", "");
             if (redisUtil.getData(token) == null) { //redis blacklist check
                 DecodedJWT decodedJWT = jwtService.isTokenValid(token);
                 String socialId = jwtService.getSocialId(decodedJWT);
